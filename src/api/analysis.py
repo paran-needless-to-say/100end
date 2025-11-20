@@ -43,13 +43,20 @@ class Analyzer:
 
         return graph.to_dict()
 
-    def analyze_bridge_transaction(self, tx: Dict[str, Any]) -> Dict[str, Any]:
-        src_chain_id = tx['chain_id']
+    def analyze_bridge_transaction(self, chain_id: int, tx_hash: str) -> Dict[str, Any]:
+        """
+        Analyze a bridge transaction to identify cross-chain transfers.
 
-        url = RPC_URLS[str(src_chain_id)]
+        Args:
+            chain_id: The source chain ID
+            tx_hash: The transaction hash to analyze
+
+        Returns:
+            Dict containing bridge transaction analysis data
+        """
+        url = RPC_URLS[str(chain_id)]
         w3 = Web3(Web3.HTTPProvider(url))
 
-        tx_hash = tx['tx_hash']
         result = w3.eth.get_transaction(transaction_hash=tx_hash)
         input_data = result['input']
         methodId = input_data[:10]
@@ -58,7 +65,7 @@ class Analyzer:
         if bridge == 'DeBridge':
             return debridge.decode_bridge_transaction(tx_hash=tx_hash)
         else:
-            # TODO
+            # TODO: Implement other bridge protocols
             pass
 
         raise NotImplementedError("Bridge transaction analysis not yet implemented")

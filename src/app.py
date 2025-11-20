@@ -41,26 +41,25 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
-    @app.route('/api/analysis/bridge', methods=['POST'])
+    @app.route('/api/analysis/bridge', methods=['GET'])
     def get_bridge_analysis():
-        data = request.get_json()
+        chain_id = request.args.get('chain_id')
+        tx_hash = request.args.get('tx_hash')
 
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
+        if not chain_id:
+            return jsonify({'error': 'chain_id is required'}), 400
 
-        if data.get('tx_type') != 'BRIDGE':
-            return jsonify({'error': 'tx_type must be BRIDGE'}), 400
+        if not tx_hash:
+            return jsonify({'error': 'tx_hash is required'}), 400
 
-        required_fields = ['tx_hash', 'from_address', 'to_address', 'amount',
-                          'timestamp', 'token_address', 'token_symbol', 'tx_type']
-        missing_fields = [field for field in required_fields if field not in data]
-
-        if missing_fields:
-            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+        try:
+            chain_id = int(chain_id)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'chain_id must be a valid integer'}), 400
 
         try:
             analyzer = current_app.analyzer
-            result = analyzer.analyze_bridge_transaction(tx=data)
+            result = analyzer.analyze_bridge_transaction(chain_id=chain_id, tx_hash=tx_hash)
             return jsonify({'data': result}), 200
         except Exception as e:
             return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
