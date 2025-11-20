@@ -77,7 +77,6 @@ def fetch_live_detection(token_filter: str | None, page_no: int = 1, page_size: 
             "token": t.get("asset"),
             "amount": t.get("value"),
             "timestamp": ts_unix,
-            "pattern": None,
             "risk": None
         })
 
