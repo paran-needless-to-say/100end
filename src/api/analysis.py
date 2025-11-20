@@ -12,6 +12,7 @@ from src.bridges import debridge
 from src.constants.bridge_methods import METHODS as BRIDGE_METHODS
 from src.constants.swap_methods import METHODS as SWAP_METHODS
 from src.constants.rpc_urls import URLS as RPC_URLS
+from src.constants.token_addresses import USDT_ADDRESS
 from src.types.graph import Graph
 
 from web3 import Web3
@@ -61,6 +62,127 @@ class Analyzer:
             pass
 
         raise NotImplementedError("Bridge transaction analysis not yet implemented")
+
+    def get_filtered_fund_flow_for_scoring(self, chain_id: int, address: str) -> Dict[str, Any]:
+        graph = Graph()
+
+        normal_txs = self._fetch_normal_txs(chain_id=chain_id, address=address)
+
+        for tx in normal_txs:
+            input_data = tx.get('input', '0x')
+            value = int(tx.get('value', 0))
+
+            if value > 0 and input_data == '0x':
+                self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+                self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+
+        erc20_txs = self._fetch_erc20_transfers(chain_id=chain_id, address=address)
+
+        usdt_address_lower = USDT_ADDRESS.lower()
+        for tx in erc20_txs:
+            contract_address = tx.get('contractAddress', '').lower()
+
+            if contract_address == usdt_address_lower:
+                self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+                self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+
+        return graph.to_dict()
+
+    def get_multihop_fund_flow_for_scoring(
+        self,
+        chain_id: int,
+        address: str,
+        max_hops: int = 3,
+        max_addresses_per_direction: int = 10
+    ) -> Dict[str, Any]:
+        graph = Graph()
+        visited_addresses = set()
+
+        main_address = address.lower()
+
+        current_hop_addresses = {main_address}
+
+        for hop in range(max_hops):
+            next_hop_addresses = set()
+
+            for current_address in current_hop_addresses:
+                if current_address in visited_addresses:
+                    continue
+
+                visited_addresses.add(current_address)
+
+                left_addresses, right_addresses = self._get_filtered_transactions_for_address(
+                    graph=graph,
+                    chain_id=chain_id,
+                    address=current_address
+                )
+
+                left_limited = list(left_addresses)[:max_addresses_per_direction]
+                right_limited = list(right_addresses)[:max_addresses_per_direction]
+
+                next_hop_addresses.update(left_limited)
+                next_hop_addresses.update(right_limited)
+
+            current_hop_addresses = next_hop_addresses
+
+            if not current_hop_addresses:
+                break
+
+        return graph.to_dict()
+
+    def _get_filtered_transactions_for_address(
+        self,
+        graph: Graph,
+        chain_id: int,
+        address: str
+    ) -> tuple[set[str], set[str]]:
+        left_addresses = set()
+        right_addresses = set()
+        address_lower = address.lower()
+
+        try:
+            normal_txs = self._fetch_normal_txs(chain_id=chain_id, address=address)
+
+            for tx in normal_txs:
+                input_data = tx.get('input', '0x')
+                value = int(tx.get('value', 0))
+
+                if value > 0 and input_data == '0x':
+                    from_addr = tx.get('from', '').lower()
+                    to_addr = tx.get('to', '').lower()
+
+                    self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+                    self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+
+                    if to_addr == address_lower:
+                        left_addresses.add(from_addr)
+                    if from_addr == address_lower:
+                        right_addresses.add(to_addr)
+        except Exception as e:
+            print(f"Error fetching normal txs for {address}: {e}")
+
+        try:
+            erc20_txs = self._fetch_erc20_transfers(chain_id=chain_id, address=address)
+            usdt_address_lower = USDT_ADDRESS.lower()
+
+            for tx in erc20_txs:
+                contract_address = tx.get('contractAddress', '').lower()
+
+                if contract_address == usdt_address_lower:
+                    from_addr = tx.get('from', '').lower()
+                    to_addr = tx.get('to', '').lower()
+
+                    self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+                    self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
+
+                    if to_addr == address_lower:
+                        left_addresses.add(from_addr)
+                    if from_addr == address_lower:
+                        right_addresses.add(to_addr)
+        except Exception as e:
+            print(f"Error fetching ERC20 txs for {address}: {e}")
+
+        return left_addresses, right_addresses
 
     def calculate_risk_score(self, chain_id: int, address: str) -> int:
         raise NotImplementedError("Risk scoring not yet implemented")
