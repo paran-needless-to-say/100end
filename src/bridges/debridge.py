@@ -1,5 +1,6 @@
 import requests
 from src.types.bridge_transaction import BridgeTransaction
+from src.constants.chain_id_mapping import convert_debridge_to_etherscan_chain_id
 
 API_URL = 'https://stats-api.dln.trade/api/Orders/'
 STRING_VALUE = 'stringValue'
@@ -33,11 +34,17 @@ def decode_bridge_transaction(tx_hash: str) -> BridgeTransaction:
     token_amount_wei_out = result['takeOfferWithMetadata']['finalAmount']['bigIntegerValue']
     token_decimals_out = result['takeOfferWithMetadata']['decimals']
 
+    src_chain_id_debridge = result['giveOfferWithMetadata']['chainId'][STRING_VALUE]
+    dst_chain_id_debridge = result['takeOfferWithMetadata']['chainId'][STRING_VALUE]
+
+    src_chain_id = convert_debridge_to_etherscan_chain_id(src_chain_id_debridge)
+    dst_chain_id = convert_debridge_to_etherscan_chain_id(dst_chain_id_debridge)
+
     return BridgeTransaction(
         SRC_TX_HASH=result['createdSrcEventMetadata']['transactionHash'][STRING_VALUE],
         DST_TX_HASH=result['fulfilledDstEventMetadata']['transactionHash'][STRING_VALUE],
-        SRC_CHAIN_ID=result['giveOfferWithMetadata']['chainId'][STRING_VALUE],
-        DST_CHAIN_ID=result['takeOfferWithMetadata']['chainId'][STRING_VALUE],
+        SRC_CHAIN_ID=src_chain_id,
+        DST_CHAIN_ID=dst_chain_id,
         TOKEN_IN=result['preswapData']['tokenInMetadata']['symbol'],
         TOKEN_AMOUNT_IN=str(token_amount_wei_in / 10 ** token_decimals_in),
         TOKEN_OUT=result['takeOfferWithMetadata']['symbol'],

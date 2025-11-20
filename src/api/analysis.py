@@ -44,16 +44,6 @@ class Analyzer:
         return graph.to_dict()
 
     def analyze_bridge_transaction(self, chain_id: int, tx_hash: str) -> Dict[str, Any]:
-        """
-        Analyze a bridge transaction to identify cross-chain transfers.
-
-        Args:
-            chain_id: The source chain ID
-            tx_hash: The transaction hash to analyze
-
-        Returns:
-            Dict containing bridge transaction analysis data
-        """
         url = RPC_URLS[str(chain_id)]
         w3 = Web3(Web3.HTTPProvider(url))
 
