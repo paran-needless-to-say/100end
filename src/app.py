@@ -58,6 +58,11 @@ def create_app(api_key: str) -> Flask:
         if missing_fields:
             return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
 
-        return jsonify({'message': 'Bridge analysis completed', 'data': data}), 200
+        try:
+            analyzer = current_app.analyzer
+            result = analyzer.analyze_bridge_transaction(tx=data)
+            return jsonify({'data': result}), 200
+        except Exception as e:
+            return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
 
     return app

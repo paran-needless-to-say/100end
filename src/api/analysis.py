@@ -5,9 +5,16 @@ from etherscan.enums.actions_enum import ActionsEnum as Actions
 
 from src.enums.tx_types_enum import TxTypesEnum as TxTypes
 from src.enums.methods_enum import MethodsEnum as Methods
+from src.enums.bridges_enum import BridgesEnum as Bridges
+
+from src.bridges import debridge
+
 from src.constants.bridge_methods import METHODS as BRIDGE_METHODS
 from src.constants.swap_methods import METHODS as SWAP_METHODS
+from src.constants.rpc_urls import URLS as RPC_URLS
 from src.types.graph import Graph
+
+from web3 import Web3
 
 NATIVE_TOKEN_DECIMALS = 18
 DEFAULT_START_BLOCK = 0
@@ -36,6 +43,23 @@ class Analyzer:
         return graph.to_dict()
 
     def analyze_bridge_transaction(self, tx: Dict[str, Any]) -> Dict[str, Any]:
+        src_chain_id = tx['chain_id']
+
+        url = RPC_URLS[str(src_chain_id)]
+        w3 = Web3(Web3.HTTPProvider(url))
+
+        tx_hash = tx['tx_hash']
+        result = w3.eth.get_transaction(transaction_hash=tx_hash)
+        input_data = result['input']
+        methodId = input_data[:10]
+
+        bridge = BRIDGE_METHODS[methodId]['label']
+        if bridge == 'DeBridge':
+            return debridge.decode_bridge_transaction(tx_hash=tx_hash)
+        else:
+            # TODO
+            pass
+
         raise NotImplementedError("Bridge transaction analysis not yet implemented")
 
     def calculate_risk_score(self, chain_id: int, address: str) -> int:
@@ -55,6 +79,8 @@ class Analyzer:
         tx_type = self._classify_tx_type(tx=tx, action=action)
         amount = int(tx['value'])
         token_address = ''
+        block_height = int(tx['blockNumber'])
+        usd_value = 0 # temp
 
         if tx_type == TxTypes.NATIVE:
             amount = str(amount / 10 ** NATIVE_TOKEN_DECIMALS)
@@ -69,12 +95,14 @@ class Analyzer:
         graph.add_edge(
             chain_id=chain_id,
             tx_hash=tx['hash'],
+            block_height=block_height,
             from_address=tx['from'],
             to_address=tx['to'],
             amount=amount,
             timestamp=tx['timeStamp'],
             token_address=token_address,
             token_symbol=token_symbol,
+            usd_value=usd_value,
             tx_type=tx_type
         )
 
