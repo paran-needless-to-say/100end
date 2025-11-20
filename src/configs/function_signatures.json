@@ -1,0 +1,42 @@
+{
+    "0xa9059cbb": {
+        "functionName": "transfer(address to,uint256 value)",
+        "type": "ERC20_TRANSFER",
+        "label": "ERC20 transfer"
+    },
+    "0x3593564c": {
+        "functionName": "execute(bytes commands,bytes[] inputs,uint256 deadline)",
+        "type": "SWAP",
+        "label": "Uniswap V4 | PancakeSwap | ..."
+    },
+    "0x4d8160ba": {
+        "functionName": "strictlySwapAndCall(address _srcTokenIn,uint256 _srcAmountIn,bytes _srcTokenInPermitEnvelope,address _srcSwapRouter,bytes _srcSwapCalldata,address _srcTokenOut,uint256 _srcTokenExpectedAmountOut,address _srcTokenRefundRecipient,address _target,bytes _targetData)",
+        "type": "BRIDGE",
+        "label": "DeBridge"
+    },
+    "0xc7c7f5b3": {
+        "functionName": "send(tuple _sendParam,tuple _fee,address _refundAddress)",
+        "type": "BRIDGE",
+        "label": "USDT0 bridge"
+    },
+    "0xae328590": {
+        "functionName": "startBridgeTokensViaRelay(tuple _bridgeData,tuple _relayData)",
+        "type": "BRIDGE",
+        "label": "Relay bridge (integrated by other bridge -> `integrator` in _bridgeData)"
+    },
+    "0x733214a3": {
+        "functionName": "swapTokensSingleV3ERC20ToNative(bytes32 _transactionId,string _integrator,string _referrer,address _receiver,uint256 _minAmountOut,tuple _swapData)",
+        "type": "SWAP",
+        "label": "LI.FI: LiFi Diamond"
+    },
+    "0xaf7060fd": {
+        "functionName": "swapTokensSingleV3NativeToERC20(bytes32 _transactionId,string _integrator,string _referrer,address _receiver,uint256 _minAmountOut,tuple _swapData)",
+        "type": "SWAP",
+        "label": "LI.FI: LiFi Diamond"
+    },
+    "0x4666fc80": {
+        "functionName": "swapTokensSingleV3ERC20ToERC20(bytes32 _transactionId,string _integrator,string _referrer,address _receiver,uint256 _minAmountOut,tuple _swapData)",
+        "type": "SWAP",
+        "label": "LI.FI: LiFi Diamond"
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "ETHEREUM": {
+        "0x65b382653f7C31bC0Af67f188122035461ec9C76": "PancakeSwap: Universal Router",
+        "0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af": "Uniswap V4: Universal Router",
+        "0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee": "USDT0: OAdapterUpgradeable"
+    }
+}
