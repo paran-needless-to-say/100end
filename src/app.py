@@ -1,7 +1,9 @@
+from datetime import datetime
+
 from flask import Flask, jsonify, request, current_app
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
-
+from src.api.dashboard import run_query, format_usd
 
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
@@ -13,7 +15,26 @@ def create_app(api_key: str) -> Flask:
 
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
-        return jsonify({'message': 'Not implemented'}), 501
+        try:
+            rows = run_query()
+            recent_transfers = []
+
+            for row in rows:
+                recent_transfers.append({
+                    "chain": row["chain"],
+                    "txHash": row["tx_hash"],
+                    "timestamp": datetime.fromtimestamp(row["display_timestamp"]).strftime("%b %d, %I:%M %p"),
+                    "value": format_usd(row["value_usd"])
+                })
+
+            response = {
+                "RecentHighValueTransfers": recent_transfers
+            }
+
+            return jsonify(response), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
