@@ -11,7 +11,10 @@ requires-python = ">=3.8"
 dependencies = [
     "flask>=2.3.0",
     "etherscan-python>=2.1.0",
-    "web3>=6.0.0",
+    "web3>=5.29,<6",  # Compatible with ethereum-etl 2.4.2
+    "eth-abi>=2.2.0,<3.0.0",  # Compatible with ethereum-etl 2.4.2
+    "eth-utils==1.10",  # Compatible with ethereum-etl 2.4.2
+    "urllib3<2",  # Compatible with ethereum-etl 2.4.2
     "requests>=2.28.0",
 ]
 
