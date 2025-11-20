@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from flask import Flask, jsonify, request, current_app
+from flask_cors import CORS
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
 from src.api.dashboard import get_dune_results, LOCAL_CACHE
@@ -8,6 +9,7 @@ from src.api.dashboard import get_dune_results, LOCAL_CACHE
 
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
+    CORS(app, origins=["http://localhost:5173", "https://trace-x-two.vercel.app/"])
     app.analyzer = Analyzer(api_key=api_key)
 
     @app.route('/api/dashboard/summary', methods=['GET'])

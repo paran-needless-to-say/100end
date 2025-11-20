@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "flask>=2.3.0",
+    "flask-cors>=4.0.0",
     "etherscan-python>=2.1.0",
     "web3>=5.29,<6",  # Compatible with ethereum-etl 2.4.2
     "eth-abi>=2.2.0,<3.0.0",  # Compatible with ethereum-etl 2.4.2
