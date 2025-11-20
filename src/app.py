@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request, current_app
 from src.api.analysis import Analyzer
+from src.api.live_detection import fetch_live_detection
 
 
 def create_app(api_key: str) -> Flask:
@@ -16,7 +17,24 @@ def create_app(api_key: str) -> Flask:
 
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
-        return jsonify({'message': 'Not implemented'}), 501
+        token_filter = request.args.get("tokenFilter")
+        page_no = request.args.get("pageNo", "1")
+
+        try:
+            page_no_int = int(page_no)
+        except:
+            page_no_int = 1
+
+        try:
+            results = fetch_live_detection(
+                token_filter=token_filter,
+                page_no=page_no_int,
+                page_size=10
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({"data": results}), 200
 
     @app.route('/api/analysis/fund-flow', methods=['GET'])
     def get_fund_flow_analysis():
