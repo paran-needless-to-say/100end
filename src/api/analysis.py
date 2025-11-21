@@ -67,7 +67,8 @@ class Analyzer:
         self,
         chain_id: int,
         address: str,
-        hop_count: int = 1
+        max_hops: int = 1,
+        max_addresses_per_direction: int = 10
     ) -> Dict[str, Any]:
         graph = ScoringGraph()
         visited_addresses = set()
@@ -75,7 +76,7 @@ class Analyzer:
         main_address = address.lower()
         current_hop_addresses = {main_address}
 
-        for hop in range(hop_count):
+        for hop in range(max_hops):
             next_hop_addresses = set()
 
             for current_address in current_hop_addresses:
