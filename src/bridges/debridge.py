@@ -1,5 +1,5 @@
 import requests
-from src.types.bridge_transaction import BridgeTransaction
+from typing import Tuple
 from src.constants.chain_id_mapping import convert_debridge_to_etherscan_chain_id
 
 API_URL = 'https://stats-api.dln.trade/api/Orders/'
@@ -22,37 +22,17 @@ def get_order_id_by_tx_hash(tx_hash: str) -> str:
 
     return order_id
 
-def decode_bridge_transaction(tx_hash: str) -> BridgeTransaction:
+def decode_bridge_transaction(tx_hash: str) -> Tuple[int, str]:
     order_id = get_order_id_by_tx_hash(tx_hash)
 
     response = requests.get(API_URL + order_id)
     result = response.json()
 
-    token_amount_wei_in = result['preswapData']['inAmount']['bigIntegerValue']
-    token_decimals_in = result['preswapData']['tokenInMetadata']['decimals']
-
-    token_amount_wei_out = result['takeOfferWithMetadata']['finalAmount']['bigIntegerValue']
-    token_decimals_out = result['takeOfferWithMetadata']['decimals']
-
-    src_chain_id_debridge = result['giveOfferWithMetadata']['chainId'][STRING_VALUE]
     dst_chain_id_debridge = result['takeOfferWithMetadata']['chainId'][STRING_VALUE]
-
-    src_chain_id = convert_debridge_to_etherscan_chain_id(src_chain_id_debridge)
     dst_chain_id = convert_debridge_to_etherscan_chain_id(dst_chain_id_debridge)
+    recipient = result['receiverDst'][STRING_VALUE]
 
-    return BridgeTransaction(
-        SRC_TX_HASH=result['createdSrcEventMetadata']['transactionHash'][STRING_VALUE],
-        DST_TX_HASH=result['fulfilledDstEventMetadata']['transactionHash'][STRING_VALUE],
-        SRC_CHAIN_ID=src_chain_id,
-        DST_CHAIN_ID=dst_chain_id,
-        TOKEN_IN=result['preswapData']['tokenInMetadata']['symbol'],
-        TOKEN_AMOUNT_IN=str(token_amount_wei_in / 10 ** token_decimals_in),
-        TOKEN_OUT=result['takeOfferWithMetadata']['symbol'],
-        TOKEN_AMOUNT_OUT=str(token_amount_wei_out / 10 ** token_decimals_out),
-        FROM=result['makerSrc'][STRING_VALUE],
-        TO=result['receiverDst'][STRING_VALUE],
-        TIMESTAMP=result['createdSrcEventMetadata']['blockTimeStamp']
-    )
+    return dst_chain_id, recipient
 
 if __name__ == '__main__':
     tx_hash = '0x9155d2fd709b5d5b4f190ea8299e260a0d7c32a69925a10830b2e02c3728b8b1'

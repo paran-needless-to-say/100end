@@ -31,8 +31,78 @@ DEBRIDGE_TO_ETHERSCAN_CHAIN_ID = {
     '7565164': None,
 }
 
+LAYERZERO_TO_ETHERSCAN_CHAIN_ID = {
+    'ethereum-mainnet': 1,
+    'ethereum': 1,
+    'sepolia-testnet': 11155111,
+    'sepolia': 11155111,
+    'holesky-testnet': 17000,
+    'holesky': 17000,
+    'arbitrum-mainnet': 42161,
+    'arbitrum': 42161,
+    'arbitrum-nova': 42170,
+    'arbitrum-sepolia': 421614,
+    'optimism-mainnet': 10,
+    'optimism': 10,
+    'optimism-sepolia': 11155420,
+    'base-mainnet': 8453,
+    'base': 8453,
+    'base-sepolia': 84532,
+    'zksync-mainnet': 324,
+    'zksync': 324,
+    'zksync-sepolia': 300,
+    'scroll-mainnet': 534352,
+    'scroll': 534352,
+    'scroll-sepolia': 534351,
+    'linea-mainnet': 59144,
+    'linea': 59144,
+    'linea-sepolia': 59141,
+    'polygon-mainnet': 137,
+    'polygon': 137,
+    'amoy-testnet': 80002,
+    'amoy': 80002,
+    'avalanche-mainnet': 43114,
+    'avalanche': 43114,
+    'fuji-testnet': 43113,
+    'fuji': 43113,
+    'bsc-mainnet': 56,
+    'bsc': 56,
+    'bsc-testnet': 97,
+    'celo-mainnet': 42220,
+    'celo': 42220,
+    'gnosis-mainnet': 100,
+    'gnosis': 100,
+    'moonbeam-mainnet': 1284,
+    'moonbeam': 1284,
+    'moonriver-mainnet': 1285,
+    'moonriver': 1285,
+    'xlayer-mainnet': 196,
+    'tenet-mainnet': 1559,
+    'animechain-mainnet': 4733,
+    'rootstock-mainnet': 30,
+    'harmony-mainnet': 1666600000,
+    'skale-mainnet': 1482601649,
+    'worldcoin-mainnet': 480,
+    'bob-mainnet': 60808,
+    'lyra-mainnet': 957,
+    'flow-mainnet': 747,
+    'bitlayer-mainnet': 200901,
+    'shimmer-mainnet': 148,
+    'canto-mainnet': 7700,
+    'ink-mainnet': 57073,
+    'joc-mainnet': 25925,
+    'coredao-mainnet': 1116,
+    'hyperliquid': 999
+}
+
 def convert_debridge_to_etherscan_chain_id(debridge_chain_id: str) -> int:
     chain_id = DEBRIDGE_TO_ETHERSCAN_CHAIN_ID.get(str(debridge_chain_id))
     if chain_id is None:
         raise ValueError(f"Chain ID {debridge_chain_id} not supported by Etherscan")
+    return chain_id
+
+def convert_layerzero_to_etherscan_chain_id(layerzero_chain_key: str) -> int:
+    chain_id = LAYERZERO_TO_ETHERSCAN_CHAIN_ID.get(layerzero_chain_key)
+    if chain_id is None:
+        raise ValueError(f"LayerZero chain '{layerzero_chain_key}' not supported by Etherscan")
     return chain_id
