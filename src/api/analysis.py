@@ -153,7 +153,7 @@ class Analyzer:
 
     def _add_edge_from_tx_for_scoring(self, graph: ScoringGraph, chain_id: int, tx: Dict[str, Any]) -> None:
         token_symbol = tx.get('tokenSymbol')
-        action = Actions.TOKENTX if token_symbol else Actions.TXLIST
+        action = "tokentx" if token_symbol else "txlist"
 
         tx_type = self._classify_tx_type(tx=tx, action=action)
         if tx_type == TxTypes.UNKNOWN:
@@ -223,7 +223,7 @@ class Analyzer:
 
     def _add_edge_from_tx(self, graph: Graph, chain_id: int, tx: Dict[str, Any]) -> None:
         token_symbol = tx.get('tokenSymbol')
-        action = Actions.TOKENTX if token_symbol else Actions.TXLIST
+        action = "tokentx" if token_symbol else "txlist"
 
         tx_type = self._classify_tx_type(tx=tx, action=action)
         if tx_type == TxTypes.UNKNOWN:
@@ -308,11 +308,11 @@ class Analyzer:
         input_data = tx['input']
         method_id = tx['methodId']
 
-        if action == Actions.TOKENTX:
+        if action == "tokentx":
             if method_id == Methods.ERC20_TRANSFER:
                 return TxTypes.ERC20_TRANSFER
 
-        elif action == Actions.TXLIST:
+        elif action == "txlist":
             if input_data == '0x':
                 return TxTypes.NATIVE
 
