@@ -10,15 +10,14 @@ class EtherscanV2Client:
     
     BASE_URL = "https://api.etherscan.io/v2/api"
     
-    def __init__(self, api_key: str, chain_id: int = 1):
+    def __init__(self, api_key: str):
         self.api_key = api_key
-        self.chain_id = chain_id  # Default: 1 (Ethereum Mainnet)
         self.session = requests.Session()
     
-    def _make_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _make_request(self, params: Dict[str, Any], chain_id: int = 1) -> Dict[str, Any]:
         """Make API request to Etherscan V2"""
         params['apikey'] = self.api_key
-        params['chainid'] = self.chain_id  # V2 requires chainid parameter
+        params['chainid'] = chain_id  # V2 requires chainid parameter
         
         try:
             response = self.session.get(self.BASE_URL, params=params, timeout=10)
@@ -34,6 +33,7 @@ class EtherscanV2Client:
     
     def get_normal_transactions(
         self,
+        chain_id: int,
         address: str,
         startblock: int = 0,
         endblock: int = 99999999,
@@ -53,11 +53,12 @@ class EtherscanV2Client:
             'sort': sort
         }
         
-        result = self._make_request(params)
+        result = self._make_request(params, chain_id)
         return result.get('result', [])
     
     def get_erc20_transfers(
         self,
+        chain_id: int,
         address: str,
         startblock: int = 0,
         endblock: int = 99999999,
@@ -81,11 +82,12 @@ class EtherscanV2Client:
         if contractaddress:
             params['contractaddress'] = contractaddress
         
-        result = self._make_request(params)
+        result = self._make_request(params, chain_id)
         return result.get('result', [])
     
     def get_internal_transactions(
         self,
+        chain_id: int,
         address: str,
         startblock: int = 0,
         endblock: int = 99999999,
@@ -105,10 +107,10 @@ class EtherscanV2Client:
             'sort': sort
         }
         
-        result = self._make_request(params)
+        result = self._make_request(params, chain_id)
         return result.get('result', [])
     
-    def get_balance(self, address: str) -> str:
+    def get_balance(self, chain_id: int, address: str) -> str:
         """Get ETH balance for an address"""
         params = {
             'module': 'account',
@@ -117,6 +119,6 @@ class EtherscanV2Client:
             'tag': 'latest'
         }
         
-        result = self._make_request(params)
+        result = self._make_request(params, chain_id)
         return result.get('result', '0')
 

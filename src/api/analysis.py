@@ -286,7 +286,7 @@ class Analyzer:
 
     def _fetch_normal_txs(self, chain_id: int, address: str) -> list:
         time.sleep(0.4)  # Rate limiting
-        return self.scanner.get_normal_txs_by_address(
+        return self.scanner.get_normal_transactions(
             chain_id=chain_id,
             address=address,
             startblock=DEFAULT_START_BLOCK,
@@ -296,7 +296,7 @@ class Analyzer:
 
     def _fetch_erc20_transfers(self, chain_id: int, address: str) -> list:
         time.sleep(0.4)  # Rate limiting
-        return self.scanner.get_erc20_token_transfer_events_by_address(
+        return self.scanner.get_erc20_transfers(
             chain_id=chain_id,
             address=address,
             startblock=DEFAULT_START_BLOCK,
