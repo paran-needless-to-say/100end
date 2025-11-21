@@ -7,7 +7,7 @@ from src.enums.tx_types_enum import TxTypesEnum as TxTypes
 from src.enums.methods_enum import MethodsEnum as Methods
 from src.enums.bridges_enum import BridgesEnum as Bridges
 
-from src.bridges import debridge
+from src.bridges import debridge, usdt0
 
 from src.constants.bridge_methods import METHODS as BRIDGE_METHODS
 from src.constants.swap_methods import METHODS as SWAP_METHODS
@@ -53,12 +53,13 @@ class Analyzer:
 
         bridge = BRIDGE_METHODS[methodId]['label']
         if bridge == 'DeBridge':
-            return debridge.decode_bridge_transaction(tx_hash=tx_hash)
+            dst_chain_id, recipient = debridge.decode_bridge_transaction(tx_hash=tx_hash)
+        elif bridge == 'USDT0':
+            dst_chain_id, recipient = usdt0.decode_bridge_transaction(tx_hash=tx_hash, chain_id=chain_id)
         else:
-            # TODO: Implement other bridge protocols
-            pass
+            raise NotImplementedError(f"Bridge protocol '{bridge}' not yet implemented")
 
-        raise NotImplementedError("Bridge transaction analysis not yet implemented")
+        return self.get_fund_flow_by_address(chain_id=dst_chain_id, address=recipient)
 
     def get_filtered_fund_flow_for_scoring(self, chain_id: int, address: str) -> Dict[str, Any]:
         graph = Graph()

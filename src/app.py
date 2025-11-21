@@ -9,7 +9,8 @@ from src.api.dashboard import get_dune_results, LOCAL_CACHE
 
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
-    CORS(app, origins=["http://localhost:5173", "https://trace-x-two.vercel.app/"])
+    # CORS(app, origins=["http://localhost:5173", "https://trace-x-two.vercel.app/"])
+    CORS(app)
     app.analyzer = Analyzer(api_key=api_key)
 
     @app.route('/api/dashboard/summary', methods=['GET'])
