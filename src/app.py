@@ -113,17 +113,11 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
 
-    @app.route('/api/analysis/scoring', methods=['POST'])
+    @app.route('/api/analysis/scoring', methods=['GET'])
     def get_scoring_analysis():
-        data = request.get_json()
-
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-
-        chain_id = data.get('chain_id')
-        address = data.get('address')
-        max_hops = data.get('max_hops', 3)
-        max_addresses_per_direction = data.get('max_addresses_per_direction', 10)
+        chain_id = request.args.get('chain_id')
+        address = request.args.get('address')
+        hop_count = request.args.get('hop_count', '1')
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
@@ -133,18 +127,25 @@ def create_app(api_key: str) -> Flask:
 
         try:
             chain_id = int(chain_id)
-            max_hops = int(max_hops)
-            max_addresses_per_direction = int(max_addresses_per_direction)
-        except (ValueError, TypeError):
-            return jsonify({'error': 'chain_id, max_hops, and max_addresses_per_direction must be valid integers'}), 400
+            hop_count = int(hop_count)
+        except ValueError:
+            return jsonify({'error': 'chain_id and hop_count must be valid integers'}), 400
+
+        if str(chain_id) not in RPC_URLS:
+            return jsonify({'error': f'chain_id {chain_id} is not supported'}), 404
+
+        if not address.startswith('0x') or len(address) != 42:
+            return jsonify({'error': 'address must be a valid EVM address (0x + 40 hex characters)'}), 404
+
+        if hop_count < 1:
+            return jsonify({'error': 'hop_count must be at least 1'}), 400
 
         try:
             analyzer = current_app.analyzer
             graph_data = analyzer.get_multihop_fund_flow_for_scoring(
                 chain_id=chain_id,
                 address=address,
-                max_hops=max_hops,
-                max_addresses_per_direction=max_addresses_per_direction
+                hop_count=hop_count
             )
             return jsonify({'data': graph_data}), 200
         except Exception as e:

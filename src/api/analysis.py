@@ -14,6 +14,7 @@ from src.constants.swap_methods import METHODS as SWAP_METHODS
 from src.constants.rpc_urls import URLS as RPC_URLS
 from src.constants.token_addresses import USDT_ADDRESS
 from src.types.graph import Graph
+from src.types.scoring_graph import ScoringGraph
 
 from web3 import Web3
 
@@ -61,46 +62,19 @@ class Analyzer:
 
         return self.get_fund_flow_by_address(chain_id=dst_chain_id, address=recipient)
 
-    def get_filtered_fund_flow_for_scoring(self, chain_id: int, address: str) -> Dict[str, Any]:
-        graph = Graph()
-
-        normal_txs = self._fetch_normal_txs(chain_id=chain_id, address=address)
-
-        for tx in normal_txs:
-            input_data = tx.get('input', '0x')
-            value = int(tx.get('value', 0))
-
-            if value > 0 and input_data == '0x':
-                self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-                self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-
-        erc20_txs = self._fetch_erc20_transfers(chain_id=chain_id, address=address)
-
-        usdt_address_lower = USDT_ADDRESS.lower()
-        for tx in erc20_txs:
-            contract_address = tx.get('contractAddress', '').lower()
-
-            if contract_address == usdt_address_lower:
-                self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-                self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-
-        return graph.to_dict()
-
     def get_multihop_fund_flow_for_scoring(
         self,
         chain_id: int,
         address: str,
-        max_hops: int = 3,
-        max_addresses_per_direction: int = 10
+        hop_count: int = 1
     ) -> Dict[str, Any]:
-        graph = Graph()
+        graph = ScoringGraph()
         visited_addresses = set()
 
         main_address = address.lower()
-
         current_hop_addresses = {main_address}
 
-        for hop in range(max_hops):
+        for hop in range(hop_count):
             next_hop_addresses = set()
 
             for current_address in current_hop_addresses:
@@ -109,17 +83,13 @@ class Analyzer:
 
                 visited_addresses.add(current_address)
 
-                left_addresses, right_addresses = self._get_filtered_transactions_for_address(
+                connected_addresses = self._get_fund_flow_for_scoring(
                     graph=graph,
                     chain_id=chain_id,
                     address=current_address
                 )
 
-                left_limited = list(left_addresses)[:max_addresses_per_direction]
-                right_limited = list(right_addresses)[:max_addresses_per_direction]
-
-                next_hop_addresses.update(left_limited)
-                next_hop_addresses.update(right_limited)
+                next_hop_addresses.update(connected_addresses)
 
             current_hop_addresses = next_hop_addresses
 
@@ -128,62 +98,94 @@ class Analyzer:
 
         return graph.to_dict()
 
-    def _get_filtered_transactions_for_address(
+    def _get_fund_flow_for_scoring(
         self,
-        graph: Graph,
+        graph: ScoringGraph,
         chain_id: int,
         address: str
-    ) -> tuple[set[str], set[str]]:
-        left_addresses = set()
-        right_addresses = set()
+    ) -> set[str]:
+        connected_addresses = set()
         address_lower = address.lower()
 
         try:
             normal_txs = self._fetch_normal_txs(chain_id=chain_id, address=address)
 
             for tx in normal_txs:
-                input_data = tx.get('input', '0x')
-                value = int(tx.get('value', 0))
+                from_addr = tx.get('from', '').lower()
+                to_addr = tx.get('to', '').lower()
 
-                if value > 0 and input_data == '0x':
-                    from_addr = tx.get('from', '').lower()
-                    to_addr = tx.get('to', '').lower()
+                self._add_nodes_from_tx_for_scoring(graph=graph, chain_id=chain_id, tx=tx)
+                self._add_edge_from_tx_for_scoring(graph=graph, chain_id=chain_id, tx=tx)
 
-                    self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-                    self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-
-                    if to_addr == address_lower:
-                        left_addresses.add(from_addr)
-                    if from_addr == address_lower:
-                        right_addresses.add(to_addr)
+                if to_addr == address_lower and from_addr:
+                    connected_addresses.add(from_addr)
+                if from_addr == address_lower and to_addr:
+                    connected_addresses.add(to_addr)
         except Exception as e:
             print(f"Error fetching normal txs for {address}: {e}")
 
         try:
             erc20_txs = self._fetch_erc20_transfers(chain_id=chain_id, address=address)
-            usdt_address_lower = USDT_ADDRESS.lower()
 
             for tx in erc20_txs:
-                contract_address = tx.get('contractAddress', '').lower()
+                from_addr = tx.get('from', '').lower()
+                to_addr = tx.get('to', '').lower()
 
-                if contract_address == usdt_address_lower:
-                    from_addr = tx.get('from', '').lower()
-                    to_addr = tx.get('to', '').lower()
+                self._add_nodes_from_tx_for_scoring(graph=graph, chain_id=chain_id, tx=tx)
+                self._add_edge_from_tx_for_scoring(graph=graph, chain_id=chain_id, tx=tx)
 
-                    self._add_nodes_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-                    self._add_edge_from_tx(graph=graph, chain_id=chain_id, tx=tx)
-
-                    if to_addr == address_lower:
-                        left_addresses.add(from_addr)
-                    if from_addr == address_lower:
-                        right_addresses.add(to_addr)
+                if to_addr == address_lower and from_addr:
+                    connected_addresses.add(from_addr)
+                if from_addr == address_lower and to_addr:
+                    connected_addresses.add(to_addr)
         except Exception as e:
             print(f"Error fetching ERC20 txs for {address}: {e}")
 
-        return left_addresses, right_addresses
+        return connected_addresses
 
-    def calculate_risk_score(self, chain_id: int, address: str) -> int:
-        raise NotImplementedError("Risk scoring not yet implemented")
+    def _add_nodes_from_tx_for_scoring(self, graph: ScoringGraph, chain_id: int, tx: Dict[str, Any]) -> None:
+        from_address = tx['from']
+        to_address = tx['to']
+
+        for address in [from_address, to_address]:
+            graph.add_node(address, chain_id)
+
+    def _add_edge_from_tx_for_scoring(self, graph: ScoringGraph, chain_id: int, tx: Dict[str, Any]) -> None:
+        token_symbol = tx.get('tokenSymbol')
+        action = Actions.TOKENTX if token_symbol else Actions.TXLIST
+
+        tx_type = self._classify_tx_type(tx=tx, action=action)
+        if tx_type == TxTypes.UNKNOWN:
+            return
+
+        amount = int(tx['value'])
+        token_address = ''
+        block_height = int(tx['blockNumber'])
+        usd_value = 0
+
+        if tx_type == TxTypes.NATIVE:
+            amount = str(amount / 10 ** NATIVE_TOKEN_DECIMALS)
+            token_symbol = 'ETH'
+        elif tx_type == TxTypes.ERC20_TRANSFER:
+            decimals = int(tx['tokenDecimal'])
+            amount = str(amount / 10 ** decimals)
+            token_address = tx['contractAddress']
+        elif tx_type in (TxTypes.BRIDGE, TxTypes.SWAP):
+            amount = str(amount)
+
+        graph.add_edge(
+            chain_id=chain_id,
+            tx_hash=tx['hash'],
+            block_height=block_height,
+            from_address=tx['from'],
+            to_address=tx['to'],
+            amount=amount,
+            timestamp=tx['timeStamp'],
+            token_address=token_address,
+            token_symbol=token_symbol,
+            usd_value=usd_value,
+            tx_type=tx_type
+        )
 
     def _add_nodes_from_tx(self, graph: Graph, chain_id: int, tx: Dict[str, Any]) -> None:
         from_address = tx['from']
