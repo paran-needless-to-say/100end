@@ -1,7 +1,7 @@
 from typing import Dict, Any
+import time
 
-from etherscan import Etherscan
-from etherscan.enums.actions_enum import ActionsEnum as Actions
+from src.api.etherscan_v2 import EtherscanV2Client
 
 from src.enums.tx_types_enum import TxTypesEnum as TxTypes
 from src.enums.methods_enum import MethodsEnum as Methods
@@ -26,7 +26,7 @@ DEFAULT_END_BLOCK = 99999999
 
 class Analyzer:
     def __init__(self, api_key: str):
-        self.scanner = Etherscan(api_key=api_key)
+        self.scanner = EtherscanV2Client(api_key=api_key)
 
     def get_fund_flow_by_address(self, chain_id: int, address: str) -> Dict[str, Any]:
         graph = Graph()
@@ -285,21 +285,23 @@ class Analyzer:
         )
 
     def _fetch_normal_txs(self, chain_id: int, address: str) -> list:
+        time.sleep(0.4)  # Rate limiting
         return self.scanner.get_normal_txs_by_address(
+            chain_id=chain_id,
             address=address,
             startblock=DEFAULT_START_BLOCK,
             endblock=DEFAULT_END_BLOCK,
-            sort='desc',
-            chain_id=chain_id
+            sort='desc'
         )
 
     def _fetch_erc20_transfers(self, chain_id: int, address: str) -> list:
+        time.sleep(0.4)  # Rate limiting
         return self.scanner.get_erc20_token_transfer_events_by_address(
+            chain_id=chain_id,
             address=address,
             startblock=DEFAULT_START_BLOCK,
             endblock=DEFAULT_END_BLOCK,
-            sort='desc',
-            chain_id=chain_id
+            sort='desc'
         )
 
     def _classify_tx_type(self, tx: Dict[str, Any], action: str) -> str:
