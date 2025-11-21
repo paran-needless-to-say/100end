@@ -5,6 +5,7 @@ from flask_cors import CORS
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
 from src.api.dashboard import get_dune_results, LOCAL_CACHE
+from src.constants.rpc_urls import URLS as RPC_URLS
 
 
 def create_app(api_key: str) -> Flask:
@@ -75,6 +76,12 @@ def create_app(api_key: str) -> Flask:
             chain_id = int(chain_id)
         except ValueError:
             return jsonify({'error': 'chain_id must be a valid integer'}), 400
+
+        if str(chain_id) not in RPC_URLS:
+            return jsonify({'error': f'chain_id {chain_id} is not supported'}), 404
+
+        if not address.startswith('0x') or len(address) != 42:
+            return jsonify({'error': 'address must be a valid EVM address (0x + 40 hex characters)'}), 404
 
         try:
             analyzer = current_app.analyzer
