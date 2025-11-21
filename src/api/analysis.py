@@ -15,6 +15,7 @@ from src.constants.rpc_urls import URLS as RPC_URLS
 from src.constants.token_addresses import USDT_ADDRESS
 from src.types.graph import Graph
 from src.types.scoring_graph import ScoringGraph
+from src.utils.token.services import get_token_price
 
 from web3 import Web3
 
@@ -161,17 +162,43 @@ class Analyzer:
         amount = int(tx['value'])
         token_address = ''
         block_height = int(tx['blockNumber'])
+        
         usd_value = 0
 
         if tx_type == TxTypes.NATIVE:
-            amount = str(amount / 10 ** NATIVE_TOKEN_DECIMALS)
+            amount_float = amount / 10 ** NATIVE_TOKEN_DECIMALS
+            amount = str(amount_float)
             token_symbol = 'ETH'
+            # CoinMarketCap API를 사용하여 실시간 ETH 가격 가져오기
+            try:
+                eth_price_data = get_token_price("ETH")
+                if eth_price_data:
+                    usd_value = amount_float * eth_price_data["price"]
+                else:
+                    usd_value = amount_float * 2000  # 기본값
+            except Exception as e:
+                print(f"Warning: Failed to get ETH price: {e}")
+                usd_value = amount_float * 2000  # 기본값
         elif tx_type == TxTypes.ERC20_TRANSFER:
             decimals = int(tx['tokenDecimal'])
-            amount = str(amount / 10 ** decimals)
+            amount_float = amount / 10 ** decimals
+            amount = str(amount_float)
             token_address = tx['contractAddress']
+            token_symbol = tx.get('tokenSymbol', 'UNKNOWN')
+            # ERC20 토큰의 USD 가치 계산 (지원되는 토큰만)
+            try:
+                token_price_data = get_token_price(token_symbol)
+                if token_price_data:
+                    usd_value = amount_float * token_price_data["price"]
+                else:
+                    usd_value = 0  # 가격 정보 없음
+            except Exception as e:
+                print(f"Warning: Failed to get {token_symbol} price: {e}")
+                usd_value = 0
         elif tx_type in (TxTypes.BRIDGE, TxTypes.SWAP):
             amount = str(amount)
+            # 브릿지/스왑의 USD 가치는 추후 구현 (일단 0)
+            usd_value = 0
 
         graph.add_edge(
             chain_id=chain_id,
@@ -205,17 +232,43 @@ class Analyzer:
         amount = int(tx['value'])
         token_address = ''
         block_height = int(tx['blockNumber'])
-        usd_value = 0 # temp
+        
+        usd_value = 0
 
         if tx_type == TxTypes.NATIVE:
-            amount = str(amount / 10 ** NATIVE_TOKEN_DECIMALS)
+            amount_float = amount / 10 ** NATIVE_TOKEN_DECIMALS
+            amount = str(amount_float)
             token_symbol = 'ETH'
+            # CoinMarketCap API를 사용하여 실시간 ETH 가격 가져오기
+            try:
+                eth_price_data = get_token_price("ETH")
+                if eth_price_data:
+                    usd_value = amount_float * eth_price_data["price"]
+                else:
+                    usd_value = amount_float * 2000  # 기본값
+            except Exception as e:
+                print(f"Warning: Failed to get ETH price: {e}")
+                usd_value = amount_float * 2000  # 기본값
         elif tx_type == TxTypes.ERC20_TRANSFER:
             decimals = int(tx['tokenDecimal'])
-            amount = str(amount / 10 ** decimals)
+            amount_float = amount / 10 ** decimals
+            amount = str(amount_float)
             token_address = tx['contractAddress']
+            token_symbol = tx.get('tokenSymbol', 'UNKNOWN')
+            # ERC20 토큰의 USD 가치 계산 (지원되는 토큰만)
+            try:
+                token_price_data = get_token_price(token_symbol)
+                if token_price_data:
+                    usd_value = amount_float * token_price_data["price"]
+                else:
+                    usd_value = 0  # 가격 정보 없음
+            except Exception as e:
+                print(f"Warning: Failed to get {token_symbol} price: {e}")
+                usd_value = 0
         elif tx_type in (TxTypes.BRIDGE, TxTypes.SWAP):
             amount = str(amount)
+            # 브릿지/스왑의 USD 가치는 추후 구현 (일단 0)
+            usd_value = 0
 
         graph.add_edge(
             chain_id=chain_id,
