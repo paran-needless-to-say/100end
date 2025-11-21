@@ -197,6 +197,9 @@ class Analyzer:
         action = Actions.TOKENTX if token_symbol else Actions.TXLIST
 
         tx_type = self._classify_tx_type(tx=tx, action=action)
+        if tx_type == TxTypes.UNKNOWN:
+            return
+
         amount = int(tx['value'])
         token_address = ''
         block_height = int(tx['blockNumber'])
