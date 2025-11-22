@@ -29,7 +29,8 @@ python3 main.py
 
 ### EC2 배포
 
-자세한 배포 가이드는 [DEPLOYMENT.md](./DEPLOYMENT.md)를 참조하세요.
+**빠른 배포 가이드**: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md) (5단계로 빠르게 배포)  
+**상세 배포 가이드**: [DEPLOYMENT.md](./DEPLOYMENT.md) (전체 배포 과정 상세 설명)
 
 **간단한 배포:**
 
@@ -45,6 +46,11 @@ EOF
 # 배포 스크립트 실행
 ./deploy.sh
 ```
+
+**EC2 서버 접속 후 배포:**
+
+1. 서버 접속: `ssh -i your-key.pem ubuntu@your-server-ip`
+2. 빠른 배포 가이드 따라하기: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md)
 
 ## API 엔드포인트
 
