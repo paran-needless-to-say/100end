@@ -13,11 +13,69 @@ EC2 서버에 직접 접속해서 배포하는 빠른 가이드입니다.
 - **사용자명**: 보통 `ubuntu` 또는 `ec2-user`
 - **Etherscan API 키**: 이미 발급받은 키
 
-### 2. EC2 서버 확인
+### 2. EC2 서버 접속 방법
+
+#### AWS 콘솔에서 서버 정보 확인
+
+1. **AWS 콘솔 접속**: https://console.aws.amazon.com
+2. **EC2 대시보드** → **인스턴스** 메뉴
+3. 인스턴스 선택 → **퍼블릭 IPv4 주소** 확인
+   - 예: `54.123.45.67` 또는 `ec2-54-123-45-67.compute-1.amazonaws.com`
+
+#### SSH로 접속하기
+
+**1단계: SSH 키 파일 권한 설정**
 
 ```bash
-# 로컬에서 서버 접속 테스트
+# 로컬 터미널에서 실행 (반드시 필요!)
+chmod 400 your-key.pem
+```
+
+**2단계: SSH 접속 명령어**
+
+**Ubuntu 인스턴스인 경우:**
+```bash
 ssh -i your-key.pem ubuntu@your-server-ip
+```
+
+**Amazon Linux 인스턴스인 경우:**
+```bash
+ssh -i your-key.pem ec2-user@your-server-ip
+```
+
+**예시:**
+```bash
+# 키 파일이 ~/Downloads/my-key.pem이고 IP가 54.123.45.67인 경우
+ssh -i ~/Downloads/my-key.pem ubuntu@54.123.45.67
+```
+
+#### 접속 성공 확인
+
+접속이 성공하면 다음과 같이 표시됩니다:
+```
+Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.4.0-1105-aws x86_64)
+...
+ubuntu@ip-172-31-xx-xx:~$
+```
+
+이제 EC2 서버에 접속된 상태입니다!
+
+#### 접속 문제 해결
+
+**문제 1: "Permission denied (publickey)"**
+```bash
+# 키 파일 권한 확인 및 수정
+chmod 400 your-key.pem
+```
+
+**문제 2: "Connection refused" 또는 "Connection timed out"**
+- AWS 콘솔 → EC2 → 보안 그룹 → 인바운드 규칙 확인
+- SSH (포트 22) 규칙이 본인 IP에 대해 열려있는지 확인
+
+**문제 3: 키 파일 경로 문제**
+```bash
+# 절대 경로 사용 권장
+ssh -i /full/path/to/your-key.pem ubuntu@your-server-ip
 ```
 
 ---
@@ -25,6 +83,8 @@ ssh -i your-key.pem ubuntu@your-server-ip
 ## 빠른 배포 (5단계)
 
 ### 1단계: 서버 접속
+
+위의 "EC2 서버 접속 방법"을 따라 서버에 접속하세요.
 
 ```bash
 ssh -i your-key.pem ubuntu@your-server-ip
