@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 100end-backend
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - RISK_SCORING_API_URL=http://risk-scoring:5001
+    depends_on:
+      risk-scoring:
+        condition: service_healthy
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/api/dashboard/summary"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  risk-scoring:
+    image: python:3.9-slim
+    container_name: 100end-risk-scoring
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./risk-scoring:/app
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y gcc g++ curl && 
+        pip install -r requirements.txt && 
+        python run_server.py
+      "
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  backend-network:
+    driver: bridge
