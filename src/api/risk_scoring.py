@@ -18,11 +18,17 @@ def load_sdn_list() -> Set[str]:
     """SDN 리스트 로드"""
     try:
         # 절대 경로로 SDN 리스트 찾기
+        # 현재 파일의 위치에서 상대 경로로 계산
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+        
         possible_paths = [
-            # 통합 레포 내부
+            # 현재 프로젝트 내부 (risk-scoring)
+            os.path.join(project_root, "risk-scoring/data/lists/sdn_addresses.json"),
+            # 절대 경로
+            "/Users/yelim/Desktop/paran_final/trace-x/risk-scoring/data/lists/sdn_addresses.json",
+            # 레거시 경로 (호환성)
             "/Users/yelim/Desktop/파란학기/trace-x/data/lists/sdn_addresses.json",
-            # 원본 리스크 스코어링 레포
-            "/Users/yelim/Desktop/파란학기/Cryptocurrency-Graphs-of-graphs/data/lists/sdn_addresses.json",
         ]
         
         for sdn_path in possible_paths:
