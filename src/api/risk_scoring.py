@@ -11,7 +11,10 @@ import os
 
 
 # 리스크 스코어링 API URL
-RISK_SCORING_API_URL = "http://localhost:5001"
+# 환경 변수에서 가져오거나 기본값 사용
+# Docker Compose 환경: http://risk-scoring:5001 (서비스 이름 사용)
+# 로컬 개발: http://localhost:5001
+RISK_SCORING_API_URL = os.getenv("RISK_SCORING_API_URL", "http://risk-scoring:5001")
 
 # SDN 리스트 로드
 def load_sdn_list() -> Set[str]:
