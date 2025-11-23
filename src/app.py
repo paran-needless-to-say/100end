@@ -20,6 +20,11 @@ def create_app(api_key: str) -> Flask:
     )
     app.analyzer = Analyzer(api_key=api_key)
 
+    @app.route('/health', methods=['GET'])
+    def health_check():
+        """Health check endpoint for Docker healthcheck"""
+        return jsonify({'status': 'ok', 'service': 'trace-x-backend'}), 200
+
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
         return jsonify({'message': 'Not implemented'}), 501
