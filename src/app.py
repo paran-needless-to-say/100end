@@ -32,7 +32,15 @@ def create_app(api_key: str) -> Flask:
 
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
-        return jsonify({'message': 'Not implemented'}), 501
+        # 임시로 빈 응답 반환 (프론트엔드 호환성)
+        return jsonify({
+            'data': {
+                'totalAddresses': 0,
+                'totalTransactions': 0,
+                'totalRiskScore': 0,
+                'averageRiskScore': {}
+            }
+        }), 200
 
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():

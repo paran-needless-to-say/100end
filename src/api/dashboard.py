@@ -61,16 +61,25 @@ def fetch_dune_force_execute():
 
 
 def get_dune_results():
+    # Dune API 키가 없으면 빈 리스트 반환
+    if not os.getenv("DUNE_API_KEY"):
+        return []
+    
     if is_cache_valid():
         return LOCAL_CACHE["data"]
 
-    cached = fetch_dune_cached()
-    if cached:
-        LOCAL_CACHE["timestamp"] = datetime.utcnow()
-        LOCAL_CACHE["data"] = cached
-        return cached
+    try:
+        cached = fetch_dune_cached()
+        if cached:
+            LOCAL_CACHE["timestamp"] = datetime.utcnow()
+            LOCAL_CACHE["data"] = cached
+            return cached
 
-    executed = fetch_dune_force_execute()
-    LOCAL_CACHE["timestamp"] = datetime.utcnow()
-    LOCAL_CACHE["data"] = executed
-    return executed
+        executed = fetch_dune_force_execute()
+        LOCAL_CACHE["timestamp"] = datetime.utcnow()
+        LOCAL_CACHE["data"] = executed
+        return executed
+    except Exception as e:
+        # Dune API 오류 시 빈 리스트 반환 (프론트엔드가 계속 작동하도록)
+        print(f"Dune API 오류: {e}")
+        return []
