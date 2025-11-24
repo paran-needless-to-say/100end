@@ -11,19 +11,30 @@ from src.api.risk_scoring import analyze_address_with_risk_scoring
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
     # CORS 설정 명시적으로 추가 (OPTIONS preflight 요청 처리)
-    CORS(
-        app,
-        origins=[
-            "http://localhost:5173",  # 원본 프론트엔드
-            "http://localhost:5174",  # 커스텀 프론트엔드
-            "https://trace-x-two.vercel.app/",
-            "http://3.38.112.25:5173",
-            "http://3.38.112.25:80"
-        ],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization"],
-        supports_credentials=True,
-    )
+    # 개발 환경: 모든 origin 허용 (운영 환경에서는 특정 origin만 허용)
+    import os
+    if os.getenv("FLASK_ENV") == "development" or os.getenv("ALLOW_ALL_ORIGINS") == "true":
+        CORS(
+            app,
+            origins="*",  # 개발 환경: 모든 origin 허용
+            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization"],
+            supports_credentials=False,  # "*" origin일 때는 credentials 불가
+        )
+    else:
+        CORS(
+            app,
+            origins=[
+                "http://localhost:5173",  # 원본 프론트엔드
+                "http://localhost:5174",  # 커스텀 프론트엔드
+                "https://trace-x-two.vercel.app/",
+                "http://3.38.112.25:5173",
+                "http://3.38.112.25:80"
+            ],
+            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization"],
+            supports_credentials=True,
+        )
     app.analyzer = Analyzer(api_key=api_key)
 
     @app.route('/health', methods=['GET'])
