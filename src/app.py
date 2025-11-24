@@ -13,7 +13,12 @@ def create_app(api_key: str) -> Flask:
     # CORS 설정 명시적으로 추가 (OPTIONS preflight 요청 처리)
     CORS(
         app,
-        origins=["http://localhost:5173", "https://trace-x-two.vercel.app/"],
+        origins=[
+            "http://localhost:5173", 
+            "https://trace-x-two.vercel.app/",
+            "http://3.38.112.25:5173",
+            "http://3.38.112.25:80"
+        ],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization"],
         supports_credentials=True,
