@@ -32,12 +32,27 @@ def create_app(api_key: str) -> Flask:
 
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
-        # 임시로 빈 응답 반환 (프론트엔드 호환성)
+        # 프론트엔드가 기대하는 구조로 응답 반환
         return jsonify({
             'data': {
-                'totalAddresses': 0,
-                'totalTransactions': 0,
-                'totalRiskScore': 0,
+                'totalVolume': {
+                    'value': 0,
+                    'changeRate': '0'
+                },
+                'totalTransactions': {
+                    'value': 0,
+                    'changeRate': '0'
+                },
+                'highRiskTransactions': {
+                    'value': 0,
+                    'changeRate': '0'
+                },
+                'warningTransactions': {
+                    'value': 0,
+                    'changeRate': '0'
+                },
+                'highRiskTransactionTrend': {},
+                'highRiskTransactionsByChain': {},
                 'averageRiskScore': {}
             }
         }), 200
