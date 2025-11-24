@@ -14,7 +14,8 @@ def create_app(api_key: str) -> Flask:
     CORS(
         app,
         origins=[
-            "http://localhost:5173", 
+            "http://localhost:5173",  # 원본 프론트엔드
+            "http://localhost:5174",  # 커스텀 프론트엔드
             "https://trace-x-two.vercel.app/",
             "http://3.38.112.25:5173",
             "http://3.38.112.25:80"
