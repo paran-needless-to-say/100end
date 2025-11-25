@@ -41,7 +41,7 @@ def create_app(api_key: str) -> Flask:
             app,
             origins="*",  # 개발 환경: 모든 origin 허용 (로컬 테스트 용이)
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
+            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
             supports_credentials=False,  # "*" origin일 때는 credentials 불가
         )
     else:
@@ -49,7 +49,7 @@ def create_app(api_key: str) -> Flask:
             app,
             origins=allowed_origins,
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
+            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
             supports_credentials=True,
         )
     app.analyzer = Analyzer(api_key=api_key)
@@ -363,5 +363,101 @@ def create_app(api_key: str) -> Flask:
             return jsonify({'data': result}), 200
         except Exception as e:
             return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
+
+    # 의심거래 보고서 API
+    from src.api.reports import (
+        create_report,
+        get_report,
+        get_all_reports,
+        update_report_status
+    )
+
+    @app.route('/api/reports/suspicious', methods=['POST'])
+    def submit_suspicious_report():
+        """의심거래 보고서 작성/제출"""
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No JSON data provided'}), 400
+            
+            # 필수 필드 확인
+            required_fields = ['title', 'address', 'chain_id', 'risk_score', 'risk_level', 'description']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+            # 보고서 생성
+            report = create_report(
+                title=data['title'],
+                address=data['address'],
+                chain_id=data['chain_id'],
+                risk_score=data['risk_score'],
+                risk_level=data['risk_level'],
+                description=data['description'],
+                analysis_data=data.get('analysis_data'),
+                transaction_hashes=data.get('transaction_hashes', [])
+            )
+            
+            return jsonify({'data': report}), 201
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to create report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious', methods=['GET'])
+    def get_suspicious_reports():
+        """의심거래 보고서 목록 조회"""
+        try:
+            status = request.args.get('status')
+            chain_id = request.args.get('chain_id', type=int)
+            limit = request.args.get('limit', 50, type=int)
+            
+            reports = get_all_reports(
+                status=status,
+                chain_id=chain_id,
+                limit=limit
+            )
+            
+            return jsonify({'data': reports}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get reports: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>', methods=['GET'])
+    def get_suspicious_report_detail(report_id: int):
+        """특정 보고서 상세 조회"""
+        try:
+            report = get_report(report_id)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>/status', methods=['PUT'])
+    def update_suspicious_report_status(report_id: int):
+        """보고서 상태 업데이트"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'status' not in data:
+                return jsonify({'error': 'Missing status field'}), 400
+            
+            status = data['status']
+            if status not in ['pending', 'reviewed', 'resolved']:
+                return jsonify({'error': 'Invalid status. Must be one of: pending, reviewed, resolved'}), 400
+            
+            report = update_report_status(report_id, status)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to update report status: {str(e)}'}), 500
 
     return app
