@@ -13,10 +13,33 @@ def create_app(api_key: str) -> Flask:
     # CORS 설정 명시적으로 추가 (OPTIONS preflight 요청 처리)
     # 개발 환경: 모든 origin 허용 (운영 환경에서는 특정 origin만 허용)
     import os
+    
+    # 허용할 origin 리스트 (개발 및 테스트용)
+    allowed_origins = [
+        # 로컬 개발 환경
+        "http://localhost:3000",
+        "http://localhost:5173",  # 원본 프론트엔드 (Vite 기본 포트)
+        "http://localhost:5174",  # 커스텀 프론트엔드
+        "http://localhost:5175",  # 추가 개발 포트
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        # EC2 배포 환경
+        "http://3.38.112.25:5173",  # 원본 프론트엔드 (EC2)
+        "http://3.38.112.25:5174",  # 커스텀 프론트엔드 (EC2)
+        "http://3.38.112.25:80",
+        "https://3.38.112.25:5173",
+        "https://3.38.112.25:5174",
+        # Vercel 배포
+        "https://trace-x-two.vercel.app",
+        "https://trace-x-two.vercel.app/",
+    ]
+    
+    # 개발 환경 또는 ALLOW_ALL_ORIGINS=true일 때 모든 origin 허용
     if os.getenv("FLASK_ENV") == "development" or os.getenv("ALLOW_ALL_ORIGINS") == "true":
         CORS(
             app,
-            origins="*",  # 개발 환경: 모든 origin 허용
+            origins="*",  # 개발 환경: 모든 origin 허용 (로컬 테스트 용이)
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization"],
             supports_credentials=False,  # "*" origin일 때는 credentials 불가
@@ -24,14 +47,7 @@ def create_app(api_key: str) -> Flask:
     else:
         CORS(
             app,
-            origins=[
-                "http://localhost:5173",  # 원본 프론트엔드 (로컬)
-                "http://localhost:5174",  # 커스텀 프론트엔드 (로컬)
-                "https://trace-x-two.vercel.app/",
-                "http://3.38.112.25:5173",  # 원본 프론트엔드 (EC2)
-                "http://3.38.112.25:5174",  # 커스텀 프론트엔드 (EC2)
-                "http://3.38.112.25:80"
-            ],
+            origins=allowed_origins,
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization"],
             supports_credentials=True,
