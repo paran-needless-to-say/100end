@@ -1,45 +1,78 @@
+import os
 from datetime import datetime
 
 from flask import Flask, jsonify, request, current_app
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+# 원격에서 온 API 관련 import
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
 from src.api.dashboard import get_dune_results, LOCAL_CACHE
 from src.api.risk_scoring import analyze_address_with_risk_scoring
 
+# 로컬에서 추가한 DB/확장 관련 import
+from .extensions import db, migrate
+
+load_dotenv()
+
 
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
-    # CORS 설정 명시적으로 추가 (OPTIONS preflight 요청 처리)
-    # 개발 환경: 모든 origin 허용 (운영 환경에서는 특정 origin만 허용)
-    import os
-    
-    # 허용할 origin 리스트 (개발 및 테스트용)
+
+    # ------------------------------
+    # 🔵 로컬에서 추가한 JSON 설정
+    # ------------------------------
+    app.json.sort_keys = False
+    app.json.ensure_ascii = False
+    app.config['JSON_AS_ASCII'] = False
+
+    # ------------------------------
+    # 🔵 로컬 DB 설정 + 초기화
+    # ------------------------------
+    db_host = os.getenv('DB_HOST')
+    db_user = os.getenv('DB_USER')
+    db_pass = os.getenv('DB_PASSWORD')
+    db_name = os.getenv('DB_NAME')
+    db_port = '3306'
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f'mysql+pymysql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}'
+    )
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
+
+    # DB 초기화
+    db.init_app(app)
+    migrate.init_app(app, db)
+
+    # 모델 로딩
+    from .visualizing_data import models
+
+    # ------------------------------
+    # 🔵 원격에 있던 CORS 설정 (EC2 + Vercel 지원)
+    # ------------------------------
     allowed_origins = [
-        # 로컬 개발 환경
         "http://localhost:3000",
-        "http://localhost:5173",  # 원본 프론트엔드 (Vite 기본 포트)
-        "http://localhost:5174",  # 커스텀 프론트엔드
-        "http://localhost:5175",  # 추가 개발 포트
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
-        # EC2 배포 환경
-        "http://3.38.112.25:5173",  # 원본 프론트엔드 (EC2)
-        "http://3.38.112.25:5174",  # 커스텀 프론트엔드 (EC2)
+        "http://3.38.112.25:5173",
+        "http://3.38.112.25:5174",
         "http://3.38.112.25:80",
         "https://3.38.112.25:5173",
         "https://3.38.112.25:5174",
-        # Vercel 배포
         "https://trace-x-two.vercel.app",
         "https://trace-x-two.vercel.app/",
     ]
-    
-    # 개발 환경 또는 ALLOW_ALL_ORIGINS=true일 때 모든 origin 허용
+
     if os.getenv("FLASK_ENV") == "development" or os.getenv("ALLOW_ALL_ORIGINS") == "true":
         CORS(
             app,
-            origins="*",  # 개발 환경: 모든 origin 허용 (로컬 테스트 용이)
+            origins="*",
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
             supports_credentials=False,  # "*" origin일 때는 credentials 불가
@@ -52,40 +85,39 @@ def create_app(api_key: str) -> Flask:
             allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
             supports_credentials=True,
         )
+
+    # ------------------------------
+    # 🔵 Analyzer 객체 초기화
+    # ------------------------------
     app.analyzer = Analyzer(api_key=api_key)
 
+    # ------------------------------
+    # 🔵 Health Check
+    # ------------------------------
     @app.route('/health', methods=['GET'])
     def health_check():
-        """Health check endpoint for Docker healthcheck"""
         return jsonify({'status': 'ok', 'service': 'trace-x-backend'}), 200
 
+    # ------------------------------
+    # 🔵 Dashboard Summary (원격)
+    # ------------------------------
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
-        # 프론트엔드가 기대하는 구조로 응답 반환
         return jsonify({
             'data': {
-                'totalVolume': {
-                    'value': 0,
-                    'changeRate': '0'
-                },
-                'totalTransactions': {
-                    'value': 0,
-                    'changeRate': '0'
-                },
-                'highRiskTransactions': {
-                    'value': 0,
-                    'changeRate': '0'
-                },
-                'warningTransactions': {
-                    'value': 0,
-                    'changeRate': '0'
-                },
+                'totalVolume': {'value': 0, 'changeRate': '0'},
+                'totalTransactions': {'value': 0, 'changeRate': '0'},
+                'highRiskTransactions': {'value': 0, 'changeRate': '0'},
+                'warningTransactions': {'value': 0, 'changeRate': '0'},
                 'highRiskTransactionTrend': {},
                 'highRiskTransactionsByChain': {},
                 'averageRiskScore': {}
             }
         }), 200
 
+    # ------------------------------
+    # 🔵 Dune Monitoring (원격)
+    # ------------------------------
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
         """
@@ -184,12 +216,21 @@ def create_app(api_key: str) -> Flask:
                         "RecentHighValueTransfers": [],
                     }), 200
 
-        except Exception as e:
-            # 모든 API 실패 시 빈 리스트 반환 (프론트엔드가 더미 데이터 사용)
-            print(f"❌ Error in get_dashboard_monitoring: {e}")
+              formatted = [{
+                  "chain": row["chain"],
+                  "txHash": row["tx_hash"],
+                  "timestamp": datetime.fromtimestamp(
+                      row["display_timestamp"]
+                  ).strftime("%b %d, %I:%M %p"),
+                  "value": f"${row['value_usd']:,.0f}"
+              } for row in rows]
+            
             return jsonify({
                 "RecentHighValueTransfers": [],
             }), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
@@ -212,23 +253,17 @@ def create_app(api_key: str) -> Flask:
 
         return jsonify({"data": results}), 200
 
+    # ------------------------------
+    # 🔵 Transaction Flow Analysis (원격)
+    # ------------------------------
     @app.route('/api/analysis/transaction-flow', methods=['GET'])
     def get_transaction_flow_analysis():
-        """
-        트랜잭션 해시 기반 자금 흐름 분석
-        
-        Query Parameters:
-        - chain_id: 체인 ID (required)
-        - tx_hash: 트랜잭션 해시 (required)
-        - max_hops: 최대 홉 수 (optional, default: 3)
-        """
         chain_id = request.args.get('chain_id')
         tx_hash = request.args.get('tx_hash')
         max_hops = request.args.get('max_hops', '3')
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
-
         if not tx_hash:
             return jsonify({'error': 'tx_hash is required'}), 400
 
@@ -240,7 +275,6 @@ def create_app(api_key: str) -> Flask:
 
         try:
             analyzer = current_app.analyzer
-            # 트랜잭션 자금 흐름 분석
             flow_data = analyzer.get_transaction_fund_flow(
                 chain_id=chain_id,
                 tx_hash=tx_hash,
@@ -250,17 +284,11 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Transaction analysis failed: {str(e)}'}), 500
 
+    # ------------------------------
+    # 🔵 Fund Flow Analysis (원격)
+    # ------------------------------
     @app.route('/api/analysis/fund-flow', methods=['GET'])
     def get_fund_flow_analysis():
-        """
-        Fund flow 그래프 데이터 가져오기 (multi-hop 지원)
-        
-        Query Parameters:
-        - chain_id: 체인 ID (required)
-        - address: 분석할 주소 (required)
-        - max_hops: 최대 홉 수 (optional, default: 2)
-        - max_addresses: 방향당 최대 주소 수 (optional, default: 10)
-        """
         chain_id = request.args.get('chain_id')
         address = request.args.get('address')
         max_hops = request.args.get('max_hops', '2')
@@ -268,7 +296,6 @@ def create_app(api_key: str) -> Flask:
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
-
         if not address:
             return jsonify({'error': 'address is required'}), 400
 
@@ -281,7 +308,6 @@ def create_app(api_key: str) -> Flask:
 
         try:
             analyzer = current_app.analyzer
-            # Multi-hop fund flow 데이터 수집
             fund_flow = analyzer.get_multihop_fund_flow_for_scoring(
                 chain_id=chain_id,
                 address=address,
@@ -292,6 +318,9 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
+    # ------------------------------
+    # 🔵 Bridge Analysis (원격)
+    # ------------------------------
     @app.route('/api/analysis/bridge', methods=['GET'])
     def get_bridge_analysis():
         chain_id = request.args.get('chain_id')
@@ -299,7 +328,6 @@ def create_app(api_key: str) -> Flask:
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
-
         if not tx_hash:
             return jsonify({'error': 'tx_hash is required'}), 400
 
@@ -315,30 +343,29 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
 
-    @app.route('/api/analysis/scoring', methods=['GET', 'POST'])  # ← GET도 추가!
+    # ------------------------------
+    # 🔵 Scoring Analysis (원격)
+    # ------------------------------
+    @app.route('/api/analysis/scoring', methods=['GET', 'POST'])
     def get_scoring_analysis():
-        # GET 또는 POST 파라미터 처리
         if request.method == 'GET':
-            # GET: query parameters
             chain_id = request.args.get('chain_id')
             address = request.args.get('address')
-            hop_count = request.args.get('hop_count', '3')  # hop_count -> max_hops
-            max_hops = hop_count  # 호환성을 위해 hop_count도 허용
+            hop_count = request.args.get('hop_count', '3')
+            max_hops = hop_count
             max_addresses_per_direction = request.args.get('max_addresses_per_direction', '10')
         else:
-            # POST: JSON body
             data = request.get_json()
             if not data:
                 return jsonify({'error': 'No JSON data provided'}), 400
-            
+
             chain_id = data.get('chain_id')
             address = data.get('address')
-            max_hops = data.get('max_hops', data.get('hop_count', 3))  # hop_count 호환
+            max_hops = data.get('max_hops', data.get('hop_count', 3))
             max_addresses_per_direction = data.get('max_addresses_per_direction', 10)
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
-
         if not address:
             return jsonify({'error': 'address is required'}), 400
 
@@ -361,62 +388,36 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Scoring analysis failed: {str(e)}'}), 500
 
-    @app.route('/api/analysis/risk-scoring', methods=['GET', 'POST'])  # ← GET도 추가!
+    # ------------------------------
+    # 🔵 Risk Scoring (원격)
+    # ------------------------------
+    @app.route('/api/analysis/risk-scoring', methods=['GET', 'POST'])
     def get_risk_scoring_analysis():
-        """
-        Multi-hop 데이터 수집 + 리스크 스코어링
-        
-        GET Request:
-            /api/analysis/risk-scoring?chain_id=1&address=0x...&hop_count=3
-        
-        POST Request:
-        {
-            "address": "0x...",
-            "chain_id": 1,
-            "max_hops": 3,  // optional, default: 3 (또는 hop_count)
-            "analysis_type": "basic" or "advanced"  // optional, default: "basic"
-        }
-        
-        Response:
-        {
-            "data": {
-                "address": "0x...",
-                "chain": "ethereum",
-                "final_score": 85,
-                "risk_level": "high",
-                ...
-            }
-        }
-        """
-        # GET 또는 POST 파라미터 처리
         if request.method == 'GET':
-            # GET: query parameters
             chain_id = request.args.get('chain_id')
             address = request.args.get('address')
             hop_count = request.args.get('hop_count', '3')
-            max_hops = hop_count  # hop_count -> max_hops
+            max_hops = hop_count
             max_addresses_per_direction = request.args.get('max_addresses_per_direction', '10')
             analysis_type = request.args.get('analysis_type', 'basic')
         else:
-            # POST: JSON body
             data = request.get_json()
             if not data:
                 return jsonify({'error': 'No JSON data provided'}), 400
-            
+
             chain_id = data.get('chain_id')
             address = data.get('address')
-            max_hops = data.get('max_hops', data.get('hop_count', 3))  # hop_count 호환
+            max_hops = data.get('max_hops', data.get('hop_count', 3))
             max_addresses_per_direction = data.get('max_addresses_per_direction', 10)
             analysis_type = data.get('analysis_type', 'basic')
 
         if not chain_id:
             return jsonify({'error': 'chain_id is required'}), 400
-
         if not address:
             return jsonify({'error': 'address is required'}), 400
 
         if analysis_type not in ['basic', 'advanced']:
-            return jsonify({'error': 'analysis_type must be "basic" or "advanced"'}), 400
+            return jsonify({'error': 'analysis_type must be \"basic\" or \"advanced\"'}), 400
 
         try:
             chain_id = int(chain_id)
@@ -426,27 +427,37 @@ def create_app(api_key: str) -> Flask:
             return jsonify({'error': 'chain_id, max_hops/hop_count, and max_addresses_per_direction must be valid integers'}), 400
 
         try:
-            # 1. Multi-hop 그래프 데이터 수집
             analyzer = current_app.analyzer
+
             graph_data = analyzer.get_multihop_fund_flow_for_scoring(
                 chain_id=chain_id,
                 address=address,
                 max_hops=max_hops,
                 max_addresses_per_direction=max_addresses_per_direction
             )
-            
-            # 2. 리스크 스코어링 API 호출
+
             result = analyze_address_with_risk_scoring(
                 address=address,
                 chain_id=chain_id,
                 graph_data=graph_data,
                 analysis_type=analysis_type
             )
-            
             return jsonify({'data': result}), 200
         except Exception as e:
             return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
 
+    # ------------------------------
+    # 🔵 Blueprint 등록 + DB 생성 (로컬 추가)
+    # ------------------------------
+    from .visualizing_data import bp as visualizing_bp
+    app.register_blueprint(visualizing_bp)
+
+    with app.app_context():
+        from .visualizing_data import models
+        db.create_all()
+
+    return app
+  
     # 의심거래 보고서 API
     from src.api.reports import (
         create_report,
