@@ -74,15 +74,15 @@ def create_app(api_key: str) -> Flask:
             app,
             origins="*",
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
-            supports_credentials=False,
+            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
+            supports_credentials=False,  # "*" origin일 때는 credentials 불가
         )
     else:
         CORS(
             app,
             origins=allowed_origins,
             methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
+            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
             supports_credentials=True,
         )
 
@@ -120,29 +120,118 @@ def create_app(api_key: str) -> Flask:
     # ------------------------------
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
+        """
+        최근 고액 거래 데이터 반환
+        1. Dune API에서 데이터를 먼저 시도
+        2. Dune API 실패 시 Alchemy API (live-detection)를 fallback으로 사용
+        """
         try:
+            # 1. 먼저 Dune API 시도
+            from src.api.dashboard import get_dune_results
             rows = get_dune_results()
+            
+            if rows and len(rows) > 0:
+                # Dune API 성공 - 기존 로직 사용
+                formatted = []
+                for row in rows:
+                    formatted.append({
+                        "chain": row.get("chain", ""),
+                        "txHash": row.get("tx_hash", ""),
+                        "timestamp": datetime.fromtimestamp(row.get("display_timestamp", 0)).strftime("%b %d, %I:%M %p"),
+                        "value": f"${row.get('value_usd', 0):,.2f}"
+                    })
 
-            formatted = [{
-                "chain": row["chain"],
-                "txHash": row["tx_hash"],
-                "timestamp": datetime.fromtimestamp(
-                    row["display_timestamp"]
-                ).strftime("%b %d, %I:%M %p"),
-                "value": f"${row['value_usd']:,.0f}"
-            } for row in rows]
+                return jsonify({
+                    "RecentHighValueTransfers": formatted,
+                }), 200
+            else:
+                # 2. Dune API 실패 또는 데이터 없음 - Alchemy API fallback
+                print("⚠️  Dune API 결과 없음, Alchemy API로 fallback...")
+                try:
+                    from src.api.live_detection import fetch_live_detection
+                    
+                    results = fetch_live_detection(
+                        token_filter=None,  # 모든 토큰
+                        page_no=1,
+                        page_size=3  # 최근 3개만
+                    )
+                    
+                    if not results or len(results) == 0:
+                        print("⚠️  Alchemy API도 데이터를 반환하지 않았습니다.")
+                        return jsonify({
+                            "RecentHighValueTransfers": [],
+                        }), 200
+                    
+                    print(f"✅ Alchemy API fallback 성공 (데이터: {len(results)}개)")
+                    
+                    formatted = []
+                    for transfer in results:
+                        # timestamp를 프론트엔드 형식으로 변환
+                        dt = datetime.fromtimestamp(transfer["timestamp"])
+                        formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
+                        
+                        # USD 가치 계산 (간단한 추정)
+                        try:
+                            amount = float(transfer.get("amount", 0))
+                            token = transfer.get("token", "")
+                            
+                            # 토큰별 대략적 USD 가격 (간단한 추정값)
+                            # 실제로는 CoinGecko API 등을 사용하는 것이 좋음
+                            token_prices = {
+                                "ETH": 3000.0,
+                                "USDT": 1.0,
+                                "USDC": 1.0,
+                                "DAI": 1.0,
+                            }
+                            
+                            # 토큰 심볼 추출 (예: "ETH" 또는 "0x...")
+                            price = token_prices.get(token.upper(), 1.0)
+                            if not token or token.startswith("0x"):
+                                # 컨트랙트 주소인 경우 기본값 사용
+                                price = 1.0
+                            
+                            usd_value = amount * price
+                            
+                            # 최소 $1 이상인 거래만 포함 (노이즈 제거)
+                            if usd_value >= 1.0:
+                                formatted.append({
+                                    "chain": "ethereum",
+                                    "txHash": transfer.get("txHash", ""),
+                                    "timestamp": formatted_timestamp,
+                                    "value": f"${usd_value:,.2f}"
+                                })
+                        except Exception as e:
+                            print(f"⚠️  Error formatting transfer: {e}")
+                            continue
+                    
+                    # 최대 3개만 반환
+                    formatted = formatted[:3]
+                    
+                    return jsonify({
+                        "RecentHighValueTransfers": formatted,
+                    }), 200
+                except Exception as e:
+                    print(f"❌ Alchemy API fallback 오류: {e}")
+                    return jsonify({
+                        "RecentHighValueTransfers": [],
+                    }), 200
 
+              formatted = [{
+                  "chain": row["chain"],
+                  "txHash": row["tx_hash"],
+                  "timestamp": datetime.fromtimestamp(
+                      row["display_timestamp"]
+                  ).strftime("%b %d, %I:%M %p"),
+                  "value": f"${row['value_usd']:,.0f}"
+              } for row in rows]
+            
             return jsonify({
-                "RecentHighValueTransfers": formatted,
-                "cache_age_seconds": (datetime.utcnow() - LOCAL_CACHE["timestamp"]).total_seconds()
+                "RecentHighValueTransfers": [],
             }), 200
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ------------------------------
-    # 🔵 Live Detection (원격)
-    # ------------------------------
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
         token_filter = request.args.get("tokenFilter")
@@ -366,5 +455,103 @@ def create_app(api_key: str) -> Flask:
     with app.app_context():
         from .visualizing_data import models
         db.create_all()
+
+    return app
+  
+    # 의심거래 보고서 API
+    from src.api.reports import (
+        create_report,
+        get_report,
+        get_all_reports,
+        update_report_status
+    )
+
+    @app.route('/api/reports/suspicious', methods=['POST'])
+    def submit_suspicious_report():
+        """의심거래 보고서 작성/제출"""
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No JSON data provided'}), 400
+            
+            # 필수 필드 확인
+            required_fields = ['title', 'address', 'chain_id', 'risk_score', 'risk_level', 'description']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+            # 보고서 생성
+            report = create_report(
+                title=data['title'],
+                address=data['address'],
+                chain_id=data['chain_id'],
+                risk_score=data['risk_score'],
+                risk_level=data['risk_level'],
+                description=data['description'],
+                analysis_data=data.get('analysis_data'),
+                transaction_hashes=data.get('transaction_hashes', [])
+            )
+            
+            return jsonify({'data': report}), 201
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to create report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious', methods=['GET'])
+    def get_suspicious_reports():
+        """의심거래 보고서 목록 조회"""
+        try:
+            status = request.args.get('status')
+            chain_id = request.args.get('chain_id', type=int)
+            limit = request.args.get('limit', 50, type=int)
+            
+            reports = get_all_reports(
+                status=status,
+                chain_id=chain_id,
+                limit=limit
+            )
+            
+            return jsonify({'data': reports}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get reports: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>', methods=['GET'])
+    def get_suspicious_report_detail(report_id: int):
+        """특정 보고서 상세 조회"""
+        try:
+            report = get_report(report_id)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>/status', methods=['PUT'])
+    def update_suspicious_report_status(report_id: int):
+        """보고서 상태 업데이트"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'status' not in data:
+                return jsonify({'error': 'Missing status field'}), 400
+            
+            status = data['status']
+            if status not in ['pending', 'reviewed', 'resolved']:
+                return jsonify({'error': 'Invalid status. Must be one of: pending, reviewed, resolved'}), 400
+            
+            report = update_report_status(report_id, status)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to update report status: {str(e)}'}), 500
 
     return app
