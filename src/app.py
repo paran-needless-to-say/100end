@@ -88,25 +88,89 @@ def create_app(api_key: str) -> Flask:
 
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
+        """
+        최근 고액 거래 데이터 반환
+        1. Dune API에서 데이터를 먼저 시도
+        2. Dune API 실패 시 Alchemy API (live-detection)를 fallback으로 사용
+        """
         try:
+            # 1. 먼저 Dune API 시도
+            from src.api.dashboard import get_dune_results
             rows = get_dune_results()
+            
+            if rows and len(rows) > 0:
+                # Dune API 성공 - 기존 로직 사용
+                formatted = []
+                for row in rows:
+                    formatted.append({
+                        "chain": row.get("chain", ""),
+                        "txHash": row.get("tx_hash", ""),
+                        "timestamp": datetime.fromtimestamp(row.get("display_timestamp", 0)).strftime("%b %d, %I:%M %p"),
+                        "value": f"${row.get('value_usd', 0):,.2f}"
+                    })
 
-            formatted = []
-            for row in rows:
-                formatted.append({
-                    "chain": row["chain"],
-                    "txHash": row["tx_hash"],
-                    "timestamp": datetime.fromtimestamp(row["display_timestamp"]).strftime("%b %d, %I:%M %p"),
-                    "value": f"${row['value_usd']:,.0f}"
-                })
-
-            return jsonify({
-                "RecentHighValueTransfers": formatted,
-                "cache_age_seconds": (datetime.utcnow() - LOCAL_CACHE["timestamp"]).total_seconds()
-            }), 200
+                return jsonify({
+                    "RecentHighValueTransfers": formatted,
+                }), 200
+            else:
+                # 2. Dune API 실패 또는 데이터 없음 - Alchemy API fallback
+                print("⚠️  Dune API 결과 없음, Alchemy API로 fallback...")
+                from src.api.live_detection import fetch_live_detection
+                
+                results = fetch_live_detection(
+                    token_filter=None,  # 모든 토큰
+                    page_no=1,
+                    page_size=3  # 최근 3개만
+                )
+                
+                formatted = []
+                for transfer in results:
+                    # timestamp를 프론트엔드 형식으로 변환
+                    dt = datetime.fromtimestamp(transfer["timestamp"])
+                    formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
+                    
+                    # USD 가치 계산 (간단한 추정)
+                    try:
+                        amount = float(transfer.get("amount", 0))
+                        token = transfer.get("token", "")
+                        
+                        # 토큰별 대략적 USD 가격 (간단한 추정값)
+                        # 실제로는 CoinGecko API 등을 사용하는 것이 좋음
+                        token_prices = {
+                            "ETH": 3000.0,
+                            "USDT": 1.0,
+                            "USDC": 1.0,
+                            "DAI": 1.0,
+                        }
+                        
+                        # 토큰 심볼 추출 (예: "ETH" 또는 "0x...")
+                        price = token_prices.get(token.upper(), 1.0)
+                        if not token or token.startswith("0x"):
+                            # 컨트랙트 주소인 경우 기본값 사용
+                            price = 1.0
+                        
+                        usd_value = amount * price
+                        
+                        formatted.append({
+                            "chain": "ethereum",
+                            "txHash": transfer.get("txHash", ""),
+                            "timestamp": formatted_timestamp,
+                            "value": f"${usd_value:,.2f}"
+                        })
+                    except Exception as e:
+                        print(f"Error formatting transfer: {e}")
+                        continue
+                
+                return jsonify({
+                    "RecentHighValueTransfers": formatted,
+                }), 200
 
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            # 모든 API 실패 시 빈 리스트 반환 (프론트엔드가 더미 데이터 사용)
+            print(f"❌ Error in get_dashboard_monitoring: {e}")
+            return jsonify({
+                "RecentHighValueTransfers": [],
+            }), 200
 
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
