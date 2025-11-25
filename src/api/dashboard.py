@@ -61,25 +61,34 @@ def fetch_dune_force_execute():
 
 
 def get_dune_results():
-    # Dune API 키가 없으면 빈 리스트 반환
-    if not os.getenv("DUNE_API_KEY"):
+    # Dune API 키가 없으면 빈 리스트 반환 (에러 로그 출력)
+    dune_api_key = os.getenv("DUNE_API_KEY")
+    if not dune_api_key:
+        print("⚠️  DUNE_API_KEY environment variable is not set. Dune API를 사용할 수 없습니다.")
         return []
     
     if is_cache_valid():
+        print(f"✅ Dune API 캐시 사용 (캐시 데이터: {len(LOCAL_CACHE['data']) if LOCAL_CACHE['data'] else 0}개)")
         return LOCAL_CACHE["data"]
 
     try:
+        print("🔄 Dune API 캐시된 결과 확인 중...")
         cached = fetch_dune_cached()
         if cached:
+            print(f"✅ Dune API 캐시된 결과 사용 (데이터: {len(cached)}개)")
             LOCAL_CACHE["timestamp"] = datetime.utcnow()
             LOCAL_CACHE["data"] = cached
             return cached
 
+        print("🔄 Dune API 쿼리 실행 중...")
         executed = fetch_dune_force_execute()
+        print(f"✅ Dune API 쿼리 실행 완료 (데이터: {len(executed) if executed else 0}개)")
         LOCAL_CACHE["timestamp"] = datetime.utcnow()
         LOCAL_CACHE["data"] = executed
         return executed
     except Exception as e:
-        # Dune API 오류 시 빈 리스트 반환 (프론트엔드가 계속 작동하도록)
-        print(f"Dune API 오류: {e}")
+        # Dune API 오류 시 상세 로그 출력
+        print(f"❌ Dune API 오류: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"   상세 오류: {traceback.format_exc()}")
         return []

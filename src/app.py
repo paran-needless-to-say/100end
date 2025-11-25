@@ -115,55 +115,74 @@ def create_app(api_key: str) -> Flask:
             else:
                 # 2. Dune API 실패 또는 데이터 없음 - Alchemy API fallback
                 print("⚠️  Dune API 결과 없음, Alchemy API로 fallback...")
-                from src.api.live_detection import fetch_live_detection
-                
-                results = fetch_live_detection(
-                    token_filter=None,  # 모든 토큰
-                    page_no=1,
-                    page_size=3  # 최근 3개만
-                )
-                
-                formatted = []
-                for transfer in results:
-                    # timestamp를 프론트엔드 형식으로 변환
-                    dt = datetime.fromtimestamp(transfer["timestamp"])
-                    formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
+                try:
+                    from src.api.live_detection import fetch_live_detection
                     
-                    # USD 가치 계산 (간단한 추정)
-                    try:
-                        amount = float(transfer.get("amount", 0))
-                        token = transfer.get("token", "")
+                    results = fetch_live_detection(
+                        token_filter=None,  # 모든 토큰
+                        page_no=1,
+                        page_size=3  # 최근 3개만
+                    )
+                    
+                    if not results or len(results) == 0:
+                        print("⚠️  Alchemy API도 데이터를 반환하지 않았습니다.")
+                        return jsonify({
+                            "RecentHighValueTransfers": [],
+                        }), 200
+                    
+                    print(f"✅ Alchemy API fallback 성공 (데이터: {len(results)}개)")
+                    
+                    formatted = []
+                    for transfer in results:
+                        # timestamp를 프론트엔드 형식으로 변환
+                        dt = datetime.fromtimestamp(transfer["timestamp"])
+                        formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
                         
-                        # 토큰별 대략적 USD 가격 (간단한 추정값)
-                        # 실제로는 CoinGecko API 등을 사용하는 것이 좋음
-                        token_prices = {
-                            "ETH": 3000.0,
-                            "USDT": 1.0,
-                            "USDC": 1.0,
-                            "DAI": 1.0,
-                        }
-                        
-                        # 토큰 심볼 추출 (예: "ETH" 또는 "0x...")
-                        price = token_prices.get(token.upper(), 1.0)
-                        if not token or token.startswith("0x"):
-                            # 컨트랙트 주소인 경우 기본값 사용
-                            price = 1.0
-                        
-                        usd_value = amount * price
-                        
-                        formatted.append({
-                            "chain": "ethereum",
-                            "txHash": transfer.get("txHash", ""),
-                            "timestamp": formatted_timestamp,
-                            "value": f"${usd_value:,.2f}"
-                        })
-                    except Exception as e:
-                        print(f"Error formatting transfer: {e}")
-                        continue
-                
-                return jsonify({
-                    "RecentHighValueTransfers": formatted,
-                }), 200
+                        # USD 가치 계산 (간단한 추정)
+                        try:
+                            amount = float(transfer.get("amount", 0))
+                            token = transfer.get("token", "")
+                            
+                            # 토큰별 대략적 USD 가격 (간단한 추정값)
+                            # 실제로는 CoinGecko API 등을 사용하는 것이 좋음
+                            token_prices = {
+                                "ETH": 3000.0,
+                                "USDT": 1.0,
+                                "USDC": 1.0,
+                                "DAI": 1.0,
+                            }
+                            
+                            # 토큰 심볼 추출 (예: "ETH" 또는 "0x...")
+                            price = token_prices.get(token.upper(), 1.0)
+                            if not token or token.startswith("0x"):
+                                # 컨트랙트 주소인 경우 기본값 사용
+                                price = 1.0
+                            
+                            usd_value = amount * price
+                            
+                            # 최소 $1 이상인 거래만 포함 (노이즈 제거)
+                            if usd_value >= 1.0:
+                                formatted.append({
+                                    "chain": "ethereum",
+                                    "txHash": transfer.get("txHash", ""),
+                                    "timestamp": formatted_timestamp,
+                                    "value": f"${usd_value:,.2f}"
+                                })
+                        except Exception as e:
+                            print(f"⚠️  Error formatting transfer: {e}")
+                            continue
+                    
+                    # 최대 3개만 반환
+                    formatted = formatted[:3]
+                    
+                    return jsonify({
+                        "RecentHighValueTransfers": formatted,
+                    }), 200
+                except Exception as e:
+                    print(f"❌ Alchemy API fallback 오류: {e}")
+                    return jsonify({
+                        "RecentHighValueTransfers": [],
+                    }), 200
 
         except Exception as e:
             # 모든 API 실패 시 빈 리스트 반환 (프론트엔드가 더미 데이터 사용)
