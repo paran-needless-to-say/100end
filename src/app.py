@@ -5,13 +5,10 @@ from flask import Flask, jsonify, request, current_app
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# 원격에서 온 API 관련 import
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
-from src.api.dashboard import get_dune_results, LOCAL_CACHE
 from src.api.risk_scoring import analyze_address_with_risk_scoring
 
-# 로컬에서 추가한 DB/확장 관련 import
 from .extensions import db, migrate
 
 load_dotenv()
@@ -20,16 +17,10 @@ load_dotenv()
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
 
-    # ------------------------------
-    # 🔵 로컬에서 추가한 JSON 설정
-    # ------------------------------
     app.json.sort_keys = False
     app.json.ensure_ascii = False
     app.config['JSON_AS_ASCII'] = False
 
-    # ------------------------------
-    # 🔵 로컬 DB 설정 + 초기화
-    # ------------------------------
     db_host = os.getenv('DB_HOST')
     db_user = os.getenv('DB_USER')
     db_pass = os.getenv('DB_PASSWORD')
@@ -42,65 +33,13 @@ def create_app(api_key: str) -> Flask:
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
 
-    # DB 초기화
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # 모델 로딩
-    from .visualizing_data import models
+    CORS(app)
 
-    # ------------------------------
-    # 🔵 원격에 있던 CORS 설정 (EC2 + Vercel 지원)
-    # ------------------------------
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "http://3.38.112.25:5173",
-        "http://3.38.112.25:5174",
-        "http://3.38.112.25:80",
-        "https://3.38.112.25:5173",
-        "https://3.38.112.25:5174",
-        "https://trace-x-two.vercel.app",
-        "https://trace-x-two.vercel.app/",
-    ]
-
-    if os.getenv("FLASK_ENV") == "development" or os.getenv("ALLOW_ALL_ORIGINS") == "true":
-        CORS(
-            app,
-            origins="*",
-            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
-            supports_credentials=False,  # "*" origin일 때는 credentials 불가
-        )
-    else:
-        CORS(
-            app,
-            origins=allowed_origins,
-            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
-            supports_credentials=True,
-        )
-
-    # ------------------------------
-    # 🔵 Analyzer 객체 초기화
-    # ------------------------------
     app.analyzer = Analyzer(api_key=api_key)
 
-    # ------------------------------
-    # 🔵 Health Check
-    # ------------------------------
-    @app.route('/health', methods=['GET'])
-    def health_check():
-        return jsonify({'status': 'ok', 'service': 'trace-x-backend'}), 200
-
-    # ------------------------------
-    # 🔵 Dashboard Summary (원격)
-    # ------------------------------
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
         return jsonify({
@@ -115,23 +54,13 @@ def create_app(api_key: str) -> Flask:
             }
         }), 200
 
-    # ------------------------------
-    # 🔵 Dune Monitoring (원격)
-    # ------------------------------
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
-        """
-        최근 고액 거래 데이터 반환
-        1. Dune API에서 데이터를 먼저 시도
-        2. Dune API 실패 시 Alchemy API (live-detection)를 fallback으로 사용
-        """
         try:
-            # 1. 먼저 Dune API 시도
             from src.api.dashboard import get_dune_results
             rows = get_dune_results()
 
             if rows and len(rows) > 0:
-                # Dune API 성공 - 기존 로직 사용
                 formatted = []
                 for row in rows:
                     formatted.append({
@@ -145,7 +74,6 @@ def create_app(api_key: str) -> Flask:
                     "RecentHighValueTransfers": formatted,
                 }), 200
 
-            # 2. Dune API 실패 또는 데이터 없음 → fallback
             print("⚠️  Dune API 결과 없음, Alchemy API로 fallback...")
 
             from src.api.live_detection import fetch_live_detection
@@ -166,7 +94,6 @@ def create_app(api_key: str) -> Flask:
             formatted = []
             for transfer in results:
                 try:
-                    # timestamp 변환
                     dt = datetime.fromtimestamp(transfer["timestamp"])
                     formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
 
@@ -230,9 +157,6 @@ def create_app(api_key: str) -> Flask:
 
         return jsonify({"data": results}), 200
 
-    # ------------------------------
-    # 🔵 Transaction Flow Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/transaction-flow', methods=['GET'])
     def get_transaction_flow_analysis():
         chain_id = request.args.get('chain_id')
@@ -261,9 +185,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Transaction analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Fund Flow Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/fund-flow', methods=['GET'])
     def get_fund_flow_analysis():
         chain_id = request.args.get('chain_id')
@@ -295,9 +216,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Bridge Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/bridge', methods=['GET'])
     def get_bridge_analysis():
         chain_id = request.args.get('chain_id')
@@ -320,9 +238,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Scoring Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/scoring', methods=['GET', 'POST'])
     def get_scoring_analysis():
         if request.method == 'GET':
@@ -365,9 +280,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Scoring analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Risk Scoring (원격)
-    # ------------------------------
     @app.route('/api/analysis/risk-scoring', methods=['GET', 'POST'])
     def get_risk_scoring_analysis():
         if request.method == 'GET':
@@ -423,19 +335,13 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Blueprint 등록 + DB 생성 (로컬 추가)
-    # ------------------------------
     from .visualizing_data import bp as visualizing_bp
     app.register_blueprint(visualizing_bp)
 
     with app.app_context():
         from .visualizing_data import models
         db.create_all()
-
-    return app
   
-    # 의심거래 보고서 API
     from src.api.reports import (
         create_report,
         get_report,
@@ -452,13 +358,11 @@ def create_app(api_key: str) -> Flask:
             if not data:
                 return jsonify({'error': 'No JSON data provided'}), 400
             
-            # 필수 필드 확인
             required_fields = ['title', 'address', 'chain_id', 'risk_score', 'risk_level', 'description']
             for field in required_fields:
                 if field not in data:
                     return jsonify({'error': f'Missing required field: {field}'}), 400
             
-            # 보고서 생성
             report = create_report(
                 title=data['title'],
                 address=data['address'],
