@@ -1,37 +1,26 @@
-import requests
 import json
 from typing import Dict, Any, List, Set
 from datetime import datetime
 import os
-
-RISK_SCORING_API_URL = os.getenv("RISK_SCORING_API_URL", "http://3.38.112.25:5001")
+from pathlib import Path
 
 def load_sdn_list() -> Set[str]:
     try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-        
-        possible_paths = [
-            os.path.join(project_root, "risk-scoring/data/lists/sdn_addresses.json"),
-            "/Users/yelim/Desktop/paran_final/trace-x/risk-scoring/data/lists/sdn_addresses.json",
-            "/Users/yelim/Desktop/파란학기/trace-x/data/lists/sdn_addresses.json",
-        ]
-        
-        for sdn_path in possible_paths:
-            if os.path.exists(sdn_path):
-                print(f"📂 SDN 리스트 경로: {sdn_path}")
-                with open(sdn_path, 'r') as f:
-                    sdn_list = json.load(f)
-                    return {addr.lower() for addr in sdn_list}
-        
-        print(f"❌ SDN 리스트를 찾을 수 없습니다. 확인한 경로: {possible_paths}")
+        current_dir = Path(__file__).parent
+        project_root = current_dir.parent.parent
+
+        sdn_path = project_root / "data" / "lists" / "sdn_addresses.json"
+
+        if sdn_path.exists():
+            with open(sdn_path, 'r') as f:
+                sdn_list = json.load(f)
+                return {addr.lower() for addr in sdn_list}
+
         return set()
     except Exception as e:
-        print(f"Warning: Failed to load SDN list: {e}")
         return set()
 
 SDN_LIST = load_sdn_list()
-print(f"✅ SDN 리스트 로드 완료: {len(SDN_LIST)}개 주소")
 
 def convert_graph_to_transactions(graph_data: Dict[str, Any], target_address: str) -> List[Dict[str, Any]]:
     transactions = []
@@ -97,27 +86,28 @@ def infer_label(edge: Dict[str, Any]) -> str:
     else:
         return 'unknown'
 
-def call_risk_scoring_api(
-    address: str,
-    chain_id: int,
-    transactions: List[Dict[str, Any]],
-    analysis_type: str = "basic"
-) -> Dict[str, Any]:
-    url = f"{RISK_SCORING_API_URL}/api/analyze/address"
-    
-    payload = {
-        "address": address,
-        "chain_id": chain_id,
-        "transactions": transactions,
-        "analysis_type": analysis_type
+def _convert_chain_id_to_chain(chain_id: int) -> str:
+    chain_id_map = {
+        1: "ethereum",
+        11155111: "ethereum",
+        17000: "ethereum",
+        42161: "arbitrum",
+        42170: "arbitrum",
+        421614: "arbitrum",
+        43114: "avalanche",
+        43113: "avalanche",
+        8453: "base",
+        84532: "base",
+        137: "polygon",
+        80001: "polygon",
+        56: "bsc",
+        97: "bsc",
+        250: "fantom",
+        10: "optimism",
+        420: "optimism",
+        81457: "blast",
     }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Risk scoring API call failed: {str(e)}")
+    return chain_id_map.get(chain_id, "ethereum")
 
 def analyze_address_with_risk_scoring(
     address: str,
@@ -125,8 +115,62 @@ def analyze_address_with_risk_scoring(
     graph_data: Dict[str, Any],
     analysis_type: str = "basic"
 ) -> Dict[str, Any]:
+    from src.risk_engine.scoring.address_analyzer import AddressAnalyzer
+
     transactions = convert_graph_to_transactions(graph_data, address)
-    
-    result = call_risk_scoring_api(address, chain_id, transactions, analysis_type)
-    
-    return result
+
+    chain = _convert_chain_id_to_chain(chain_id)
+
+    processed_transactions = []
+    for tx in transactions:
+        tx_chain_id = tx.get("chain_id")
+        if tx_chain_id is not None:
+            tx["chain"] = _convert_chain_id_to_chain(tx_chain_id)
+        processed_transactions.append(tx)
+
+    analyzer = AddressAnalyzer()
+    result = analyzer.analyze_address(
+        address=address,
+        chain=chain,
+        transactions=processed_transactions,
+        time_range=None,
+        analysis_type=analysis_type
+    )
+
+    chain_to_id_map = {
+        "ethereum": 1,
+        "arbitrum": 42161,
+        "avalanche": 43114,
+        "base": 8453,
+        "polygon": 137,
+        "bsc": 56,
+        "fantom": 250,
+        "optimism": 10,
+        "blast": 81457
+    }
+    result_chain_id = chain_to_id_map.get(chain.lower(), 1)
+
+    latest_timestamp = ""
+    total_value = 0.0
+    if transactions:
+        sorted_txs = sorted(
+            transactions,
+            key=lambda tx: tx.get("timestamp", ""),
+            reverse=True
+        )
+        if sorted_txs:
+            latest_timestamp = sorted_txs[0].get("timestamp", "")
+            total_value = sum(float(tx.get("amount_usd", 0)) for tx in transactions)
+
+    return {
+        "target_address": result.address,
+        "risk_score": int(result.risk_score),
+        "risk_level": result.risk_level,
+        "risk_tags": result.risk_tags,
+        "fired_rules": result.fired_rules,
+        "explanation": result.explanation,
+        "completed_at": result.completed_at,
+        "timestamp": latest_timestamp,
+        "chain_id": result_chain_id,
+        "value": float(total_value)
+    }

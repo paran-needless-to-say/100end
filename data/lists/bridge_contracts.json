@@ -1,0 +1,99 @@
+{
+  "bridges": [
+    {
+      "name": "Hop Protocol",
+      "type": "liquidity_network",
+      "contracts": {
+        "ethereum": "0x3666f603Cc164936C1b87e207F36BEBa4AC5f18a",
+        "polygon": "0x58c61AeE5eD3D748a1467085ED2650B697A66234",
+        "bsc": "0x3d4Cc8A61c7528Fd86C55cfe061a78dCBA48EDd1"
+      },
+      "tokens": ["USDC", "USDT", "ETH", "MATIC", "DAI"]
+    },
+    {
+      "name": "Multichain (Anyswap)",
+      "type": "bridge",
+      "contracts": {
+        "ethereum": "0x6b7a87899490EcE95443e979cA9485CBE7E71522",
+        "polygon": "0x4f3Aff3A747fCADe12598081e80c6605A8be192F",
+        "bsc": "0xd1C5966f9F5Ee6881Ff6b261BBeDa45972B1B5f3"
+      },
+      "tokens": ["USDC", "USDT", "DAI", "WBTC", "WETH"]
+    },
+    {
+      "name": "Synapse Protocol",
+      "type": "bridge",
+      "contracts": {
+        "ethereum": "0x2796317b0fF8538F253012862c06787Adfb8cEb6",
+        "polygon": "0x8F5BBB2BB8c2Ee94639E55d5F41de9b4839C1280",
+        "bsc": "0xd123f70AE324d34A9E76b67a27bf77593bA8749f"
+      },
+      "tokens": ["SYN", "USDC", "ETH", "NUSD"]
+    },
+    {
+      "name": "Stargate Finance",
+      "type": "liquidity_network",
+      "contracts": {
+        "ethereum": "0x8731d54E9D02c286767d56ac03e8037C07e01e98",
+        "polygon": "0x45A01E4e04F14f7A4a6702c74187c5F6222033cd",
+        "bsc": "0x4a364f8c717cAAD9A442737Eb7b8A55cc6cf18D8"
+      },
+      "tokens": ["USDC", "USDT", "STG"]
+    },
+    {
+      "name": "Celer cBridge",
+      "type": "bridge",
+      "contracts": {
+        "ethereum": "0x5427FEFA711Eff984124bFBB1AB6fbf5E3DA1820",
+        "polygon": "0x88DCDC47D2f83a99CF0000FDF667A468bB958a78",
+        "bsc": "0xdd90E5E87A2081Dcf0391920868eBc2FFB81a1aF"
+      },
+      "tokens": ["CELR", "USDC", "USDT", "WETH"]
+    },
+    {
+      "name": "Polygon Bridge (Official)",
+      "type": "native_bridge",
+      "contracts": {
+        "ethereum": "0xA0c68C638235ee32657e8f720a23ceC1bFc77C77",
+        "polygon": "0x0000000000000000000000000000000000001001"
+      },
+      "tokens": ["MATIC", "ETH"]
+    },
+    {
+      "name": "Binance Bridge",
+      "type": "native_bridge",
+      "contracts": {
+        "ethereum": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503",
+        "bsc": "0x0000000000000000000000000000000000001004"
+      },
+      "tokens": ["BNB", "BUSD"]
+    }
+  ],
+  "exchange_deposit_addresses": {
+    "binance": [
+      "0x3f5CE5FBFe3E9af3971dD833D26bA9b5C936f0bE",
+      "0x28C6c06298d514Db089934071355E5743bf21d60",
+      "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549"
+    ],
+    "coinbase": [
+      "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
+      "0x503828976D22510aad0201ac7EC88293211D23Da",
+      "0xddfAbCdc4D8FfC6d5beaf154f18B778f892A0740"
+    ],
+    "kraken": [
+      "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+      "0x0A869d79a7052C7f1b55a8EbAbbEa3420F0D1E13",
+      "0xe853c56864A2ebe4576a807D26Fdc4A0adA51919"
+    ],
+    "huobi": [
+      "0x5C985E89DDe482eFE97ea9f1950aD149Eb73829B",
+      "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+    ]
+  },
+  "mixer_services": [
+    "0x8589427373D6D84E98730D7795D8f6f8731FDA16",
+    "0x910Cbd523D972eb0a6f4cAe4618aD62622b39DbF",
+    "0xA160cdAB225685dA1d56aa342Ad8841c3b53f291"
+  ],
+  "known_scam_contracts": ["0x0000000000000000000000000000000000000000"]
+}

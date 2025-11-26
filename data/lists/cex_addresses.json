@@ -1,0 +1,25 @@
+{
+  "ethereum": {
+    "binance": [
+      "0x3f5CE5FBFe3E9af3971dD833D26BA9b5C936f0bE",
+      "0xF977814e90dA44bFA03b6295A0616a897441aceC",
+      "0x564286362092D8e7936f0549571a803B203aAceD"
+    ],
+    "coinbase": [
+      "0x503828976D22510aad0201ac7EC88293211D23Da",
+      "0x0d0707963952f2fBA59dD06f2b425ace40b492Fe"
+    ],
+    "kraken": ["0x0A869d79a7052C7f1b55a8ebabbea3420F0D1E13"],
+    "okx": ["0x2f7eBd5a2f0Ff67A1DFB2E98e6C2fF2D2C5d7a22"]
+  },
+  "bsc": {
+    "binance": [
+      "0x0000000000000000000000000000000000001004",
+      "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549"
+    ]
+  },
+  "polygon": {
+    "binance": ["0x28C6c06298d514Db089934071355E5743bf21d60"],
+    "okx": ["0x7f268357A8c2552623316e2562D90e642bB538E5"]
+  }
+}

@@ -43,11 +43,13 @@ def _initialize_extensions(app: Flask):
 def _register_routes(app: Flask, api_key: str):
     app.analyzer = Analyzer(api_key=api_key)
 
-    from src.routes import dashboard, live_detection, analysis, reports
+    from src.routes import dashboard, live_detection, analysis, reports, risk_scoring, address_analysis
     from src.visualizing_data import bp as visualizing_bp
 
     app.register_blueprint(dashboard.bp)
     app.register_blueprint(live_detection.bp)
     app.register_blueprint(analysis.bp)
     app.register_blueprint(reports.bp)
+    app.register_blueprint(risk_scoring.bp)
+    app.register_blueprint(address_analysis.bp)
     app.register_blueprint(visualizing_bp)
