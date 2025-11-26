@@ -5,13 +5,10 @@ from flask import Flask, jsonify, request, current_app
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# 원격에서 온 API 관련 import
 from src.api.analysis import Analyzer
 from src.api.live_detection import fetch_live_detection
-from src.api.dashboard import get_dune_results, LOCAL_CACHE
 from src.api.risk_scoring import analyze_address_with_risk_scoring
 
-# 로컬에서 추가한 DB/확장 관련 import
 from .extensions import db, migrate
 from .visualizing_data.routes import ingest_core
 
@@ -22,16 +19,10 @@ load_dotenv()
 def create_app(api_key: str) -> Flask:
     app = Flask(__name__)
 
-    # ------------------------------
-    # 🔵 로컬에서 추가한 JSON 설정
-    # ------------------------------
     app.json.sort_keys = False
     app.json.ensure_ascii = False
     app.config['JSON_AS_ASCII'] = False
 
-    # ------------------------------
-    # 🔵 로컬 DB 설정 + 초기화
-    # ------------------------------
     db_host = os.getenv('DB_HOST')
     db_user = os.getenv('DB_USER')
     db_pass = os.getenv('DB_PASSWORD')
@@ -44,65 +35,13 @@ def create_app(api_key: str) -> Flask:
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret')
 
-    # DB 초기화
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # 모델 로딩
-    from .visualizing_data import models
+    CORS(app)
 
-    # ------------------------------
-    # 🔵 원격에 있던 CORS 설정 (EC2 + Vercel 지원)
-    # ------------------------------
-    allowed_origins = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "http://3.38.112.25:5173",
-        "http://3.38.112.25:5174",
-        "http://3.38.112.25:80",
-        "https://3.38.112.25:5173",
-        "https://3.38.112.25:5174",
-        "https://trace-x-two.vercel.app",
-        "https://trace-x-two.vercel.app/",
-    ]
-
-    if os.getenv("FLASK_ENV") == "development" or os.getenv("ALLOW_ALL_ORIGINS") == "true":
-        CORS(
-            app,
-            origins="*",
-            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
-            supports_credentials=False,
-        )
-    else:
-        CORS(
-            app,
-            origins=allowed_origins,
-            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"],
-            supports_credentials=True,
-        )
-
-    # ------------------------------
-    # 🔵 Analyzer 객체 초기화
-    # ------------------------------
     app.analyzer = Analyzer(api_key=api_key)
 
-    # ------------------------------
-    # 🔵 Health Check
-    # ------------------------------
-    @app.route('/health', methods=['GET'])
-    def health_check():
-        return jsonify({'status': 'ok', 'service': 'trace-x-backend'}), 200
-
-    # ------------------------------
-    # 🔵 Dashboard Summary (원격)
-    # ------------------------------
     @app.route('/api/dashboard/summary', methods=['GET'])
     def get_dashboard_summary():
         return jsonify({
@@ -117,34 +56,88 @@ def create_app(api_key: str) -> Flask:
             }
         }), 200
 
-    # ------------------------------
-    # 🔵 Dune Monitoring (원격)
-    # ------------------------------
     @app.route('/api/dashboard/monitoring', methods=['GET'])
     def get_dashboard_monitoring():
         try:
+            from src.api.dashboard import get_dune_results
             rows = get_dune_results()
 
-            formatted = [{
-                "chain": row["chain"],
-                "txHash": row["tx_hash"],
-                "timestamp": datetime.fromtimestamp(
-                    row["display_timestamp"]
-                ).strftime("%b %d, %I:%M %p"),
-                "value": f"${row['value_usd']:,.0f}"
-            } for row in rows]
+            if rows and len(rows) > 0:
+                formatted = []
+                for row in rows:
+                    formatted.append({
+                        "chain": row.get("chain", ""),
+                        "txHash": row.get("tx_hash", ""),
+                        "timestamp": datetime.fromtimestamp(row.get("display_timestamp", 0)).strftime("%b %d, %I:%M %p"),
+                        "value": f"${row.get('value_usd', 0):,.2f}"
+                    })
+
+                return jsonify({
+                    "RecentHighValueTransfers": formatted,
+                }), 200
+
+            print("⚠️  Dune API 결과 없음, Alchemy API로 fallback...")
+
+            from src.api.live_detection import fetch_live_detection
+            results = fetch_live_detection(
+                token_filter=None,
+                page_no=1,
+                page_size=3
+            )
+
+            if not results or len(results) == 0:
+                print("⚠️  Alchemy API도 데이터를 반환하지 않았습니다.")
+                return jsonify({
+                    "RecentHighValueTransfers": [],
+                }), 200
+
+            print(f"✅ Alchemy API fallback 성공 (데이터: {len(results)}개)")
+
+            formatted = []
+            for transfer in results:
+                try:
+                    dt = datetime.fromtimestamp(transfer["timestamp"])
+                    formatted_timestamp = dt.strftime("%b %d, %I:%M %p")
+
+                    amount = float(transfer.get("amount", 0))
+                    token = transfer.get("token", "")
+
+                    token_prices = {
+                        "ETH": 3000.0,
+                        "USDT": 1.0,
+                        "USDC": 1.0,
+                        "DAI": 1.0,
+                    }
+
+                    price = token_prices.get(token.upper(), 1.0)
+                    if not token or token.startswith("0x"):
+                        price = 1.0
+
+                    usd_value = amount * price
+
+                    if usd_value >= 1.0:
+                        formatted.append({
+                            "chain": "ethereum",
+                            "txHash": transfer.get("txHash", ""),
+                            "timestamp": formatted_timestamp,
+                            "value": f"${usd_value:,.2f}"
+                        })
+                except Exception as e:
+                    print(f"⚠️ Error formatting transfer: {e}")
+                    continue
+
+            formatted = formatted[:3]
 
             return jsonify({
                 "RecentHighValueTransfers": formatted,
-                "cache_age_seconds": (datetime.utcnow() - LOCAL_CACHE["timestamp"]).total_seconds()
             }), 200
 
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            print(f"❌ Alchemy API fallback 오류: {e}")
+            return jsonify({
+                "RecentHighValueTransfers": [],
+            }), 200
 
-    # ------------------------------
-    # 🔵 Live Detection (원격)
-    # ------------------------------
     @app.route('/api/live-detection/summary', methods=['GET'])
     def get_live_detection_summary():
         token_filter = request.args.get("tokenFilter")
@@ -166,9 +159,6 @@ def create_app(api_key: str) -> Flask:
 
         return jsonify({"data": results}), 200
 
-    # ------------------------------
-    # 🔵 Transaction Flow Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/transaction-flow', methods=['GET'])
     def get_transaction_flow_analysis():
         chain_id = request.args.get('chain_id')
@@ -197,9 +187,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Transaction analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Fund Flow Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/fund-flow', methods=['GET'])
     def get_fund_flow_analysis():
         chain_id = request.args.get('chain_id')
@@ -231,9 +218,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Bridge Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/bridge', methods=['GET'])
     def get_bridge_analysis():
         chain_id = request.args.get('chain_id')
@@ -256,9 +240,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Analyze bridge failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Scoring Analysis (원격)
-    # ------------------------------
     @app.route('/api/analysis/scoring', methods=['GET', 'POST'])
     def get_scoring_analysis():
         if request.method == 'GET':
@@ -301,9 +282,6 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Scoring analysis failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Risk Scoring (원격)
-    # ------------------------------
     @app.route('/api/analysis/risk-scoring', methods=['GET', 'POST'])
     def get_risk_scoring_analysis():
         if request.method == 'GET':
@@ -365,14 +343,104 @@ def create_app(api_key: str) -> Flask:
         except Exception as e:
             return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
 
-    # ------------------------------
-    # 🔵 Blueprint 등록 + DB 생성 (로컬 추가)
-    # ------------------------------
     from .visualizing_data import bp as visualizing_bp
     app.register_blueprint(visualizing_bp)
 
     with app.app_context():
         from .visualizing_data import models
         db.create_all()
+  
+    from src.api.reports import (
+        create_report,
+        get_report,
+        get_all_reports,
+        update_report_status
+    )
+
+    @app.route('/api/reports/suspicious', methods=['POST'])
+    def submit_suspicious_report():
+        """의심거래 보고서 작성/제출"""
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'error': 'No JSON data provided'}), 400
+            
+            required_fields = ['title', 'address', 'chain_id', 'risk_score', 'risk_level', 'description']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({'error': f'Missing required field: {field}'}), 400
+            
+            report = create_report(
+                title=data['title'],
+                address=data['address'],
+                chain_id=data['chain_id'],
+                risk_score=data['risk_score'],
+                risk_level=data['risk_level'],
+                description=data['description'],
+                analysis_data=data.get('analysis_data'),
+                transaction_hashes=data.get('transaction_hashes', [])
+            )
+            
+            return jsonify({'data': report}), 201
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to create report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious', methods=['GET'])
+    def get_suspicious_reports():
+        """의심거래 보고서 목록 조회"""
+        try:
+            status = request.args.get('status')
+            chain_id = request.args.get('chain_id', type=int)
+            limit = request.args.get('limit', 50, type=int)
+            
+            reports = get_all_reports(
+                status=status,
+                chain_id=chain_id,
+                limit=limit
+            )
+            
+            return jsonify({'data': reports}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get reports: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>', methods=['GET'])
+    def get_suspicious_report_detail(report_id: int):
+        """특정 보고서 상세 조회"""
+        try:
+            report = get_report(report_id)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to get report: {str(e)}'}), 500
+
+    @app.route('/api/reports/suspicious/<int:report_id>/status', methods=['PUT'])
+    def update_suspicious_report_status(report_id: int):
+        """보고서 상태 업데이트"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'status' not in data:
+                return jsonify({'error': 'Missing status field'}), 400
+            
+            status = data['status']
+            if status not in ['pending', 'reviewed', 'resolved']:
+                return jsonify({'error': 'Invalid status. Must be one of: pending, reviewed, resolved'}), 400
+            
+            report = update_report_status(report_id, status)
+            
+            if not report:
+                return jsonify({'error': 'Report not found'}), 404
+            
+            return jsonify({'data': report}), 200
+            
+        except Exception as e:
+            return jsonify({'error': f'Failed to update report status: {str(e)}'}), 500
 
     return app
