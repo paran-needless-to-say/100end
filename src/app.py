@@ -13,6 +13,8 @@ from src.api.risk_scoring import analyze_address_with_risk_scoring
 
 # 로컬에서 추가한 DB/확장 관련 import
 from .extensions import db, migrate
+from .visualizing_data.routes import ingest_core
+
 
 load_dotenv()
 
@@ -353,6 +355,12 @@ def create_app(api_key: str) -> Flask:
                 graph_data=graph_data,
                 analysis_type=analysis_type
             )
+
+            #이거 연동 때문에 넣음
+            if request.method == 'POST':
+                ingest_core(result)
+            #여기까지가 연동 때문에 추가된 코드
+
             return jsonify({'data': result}), 200
         except Exception as e:
             return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
