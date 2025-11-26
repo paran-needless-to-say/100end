@@ -2,14 +2,21 @@ from flask import jsonify, request
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import func
-from collections import defaultdict
 from ..extensions import db
 from .models import RawTransaction, RiskAggregate
 from .manager import buffer_manager
 from . import bp
+<<<<<<< HEAD
 
 from .extract_transaction_and_amount import get_total_data
 
+=======
+from .extract_transaction_and_amount import get_total_data
+
+# ---------------------------------------------------------
+# [설정] Dune 데이터 캐싱 (Total만 남김 - 에러 방지용 더미)
+# ---------------------------------------------------------
+>>>>>>> feature/dashboard-api
 DUNE_CACHE = {
     "last_updated": None,
     "data": {
@@ -19,12 +26,15 @@ DUNE_CACHE = {
 }
 
 def update_dune_cache_if_needed():
-    global DUNE_CACHE
-    now = datetime.now()
-    
-    if DUNE_CACHE["last_updated"] and (now - DUNE_CACHE["last_updated"]).total_seconds() < 300:
-        return
+    now = datetime.utcnow()
+    now_kst = now + timedelta(hours=9)
+    # 5분 캐시
+    if DUNE_CACHE["last_updated"]:
+        elapsed = (now_kst - DUNE_CACHE["last_updated"]).total_seconds()
+        if elapsed < 300:
+            return
 
+<<<<<<< HEAD
     print("⏳ Dune 데이터 갱신 중... (Volume/Tx만 조회)")
     
     total_data = get_total_data()
@@ -35,73 +45,159 @@ def update_dune_cache_if_needed():
     DUNE_CACHE["last_updated"] = now
     print("✅ Dune 데이터 갱신 완료!")
 
+=======
+    # Dune 호출
+    totals = get_total_data()  # 여기서 Dune API 실제로 부름
+
+    DUNE_CACHE["data"]["totalVolume"] = totals["totalVolume"]
+    DUNE_CACHE["data"]["totalTransactions"] = totals["totalTransactions"]
+    DUNE_CACHE["last_updated"] = now_kst
+
+# ---------------------------------------------------------
+# [설정] 체인 및 순서 설정
+# ---------------------------------------------------------
+>>>>>>> feature/dashboard-api
 TARGET_CHAINS = ["Ethereum", "Bitcoin", "Base", "Others"]
 CHAIN_ID_MAP = { 1: "Ethereum", 0: "Bitcoin", 8453: "Base" }
 PERIOD_ORDER = ["1~2월", "3~4월", "5~6월", "7~8월", "9~10월", "11~12월"]
 TIME_ORDER = [f"{i:02}" for i in range(0, 24, 2)]
 
-def parse_time(ts):
-    if not ts: return datetime.utcnow()
-    try: return datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
-    except: return datetime.utcnow()
+# ---------------------------------------------------------
+# 1. 데이터 수집 (Ingest) - [최종 수정됨]
+# ---------------------------------------------------------
+
+#이거 연동용 ingest 똑같이 복사함 (인자만 받는 형태)
+def ingest_core(data: dict) -> dict:
+    try:
+        # 무조건 "지금" 기준 (KST)
+        now = datetime.utcnow()
+        now_kst = now + timedelta(hours=9)
+        current_time = now_kst
+
+        val = float(data.get('value', 0.0))
+
+        tx = RawTransaction(
+            target_address=data.get('target_address'),
+            risk_score=data.get('risk_score'),
+            risk_level=str(data.get('risk_level', '')).lower(),
+            chain_id=data.get('chain_id'),
+            value=val,
+            timestamp=current_time,  # ✅ 항상 현재 시간으로 저장
+            raw_data=data,
+        )
+        db.session.add(tx)
+        db.session.commit()
+
+        # 버퍼 누적 (시간은 매니저 내부에서 현재 기준으로 처리)
+        buffer_manager.add_data(data)
+
+    except Exception as e:
+        print(f"⚠️ Ingest Error: {e}")
+
+    # 플러시 체크
+    start_time = buffer_manager.buffer['start_time']
+    if start_time is not None and start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+
+    now = datetime.utcnow()
+    now_kst = now + timedelta(hours=9)
+    elapsed = (now_kst - start_time).total_seconds()
+
+    if elapsed >= 600:  # 10분
+        buffer_manager.flush_to_db()
+
+    return {
+        "status": "ok",
+        "buffer_count": buffer_manager.buffer['risk_score_count'],
+    }
+
+
 
 @bp.route('/ingest', methods=['POST'])
 def ingest():
     data = request.get_json()
-    if not data: return jsonify({"error": "No data"}), 400
+    if not data: 
+        return jsonify({"error": "No data"}), 400
     
     try:
-        if 'data' not in data or not data['data'].get('nodes'):
-             return jsonify({"error": "Invalid JSON structure"}), 400
-             
-        node = data['data']['nodes'][0]
-        risk = node.get('risk', {})
-        val = float(risk.get("amount_usd", 0.0) or 0.0)
+        # [핵심] 무조건 서버의 현재 시간(UTC)을 기준으로 처리
+        # (과거/미래 데이터가 들어와도 현재 발생한 것으로 간주)
+        now = datetime.utcnow()
+        now_kst = now + timedelta(hours=9)
+        current_time = now_kst
         
+<<<<<<< HEAD
         time_val = risk.get('completed_at') or risk.get('timestamp')
         final_time = parse_time(time_val)
+=======
+        # 1. DB 저장을 위해 모델 생성
+        val = float(data.get('value', 0.0))
+>>>>>>> feature/dashboard-api
         
         tx = RawTransaction(
-            target_address=node.get('address'),
-            risk_score=risk.get('risk_score'),
-            risk_level=str(risk.get('risk_level', '')).lower(),
-            chain_id=node.get('chain_id'),
+            target_address=data.get('target_address'),
+            risk_score=data.get('risk_score'),
+            risk_level=str(data.get('risk_level', '')).lower(),
+            chain_id=data.get('chain_id'),
             value=val,
-            timestamp=final_time,
+            timestamp=current_time,  # DB에 "현재 시간"으로 저장
             raw_data=data 
         )
         db.session.add(tx)
         db.session.commit()
-    except Exception as e:
-        print(f"DB Error: {e}")
 
-    buffer_manager.add_data(data)
+        # 2. 매니저에게 데이터 전달 (시간 정보는 Manager가 알아서 현재 시간으로 처리함)
+        buffer_manager.add_data(data)
+
+    except Exception as e:
+        print(f"⚠️ Ingest Error: {e}")
+        # 에러 나도 계속 진행
+
+    # 버퍼 플러시 체크 (안전한 시간 계산)
+    start_time = buffer_manager.buffer['start_time']
+    # 타임존 정보가 있다면 제거 (에러 방지)
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+
+    now = datetime.utcnow()   
+    now_kst = now + timedelta(hours=9)
+    elapsed = (now_kst - start_time).total_seconds()
     
-    elapsed = (datetime.utcnow() - buffer_manager.buffer['start_time']).total_seconds()
-    if elapsed >= 600:
+    if elapsed >= 600: # 10분
         buffer_manager.flush_to_db()
         
-    return jsonify({"status": "ok", "current_buffer": buffer_manager.buffer['risk_score_count']}), 201
+    return jsonify({
+        "status": "ok", 
+        "buffer_count": buffer_manager.buffer['risk_score_count']
+    }), 201
 
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
     now = datetime.utcnow()
+    now_kst = now + timedelta(hours=9)
     update_dune_cache_if_needed()
     
-    one_year_ago = now - timedelta(days=370)
+    # 1년치 데이터 조회
+    one_year_ago = now_kst - timedelta(days=370)
     aggregates = RiskAggregate.query.filter(RiskAggregate.timestamp >= one_year_ago).all()
 
+<<<<<<< HEAD
+=======
+    # --- A. Avg Score (2시간 단위) ---
+>>>>>>> feature/dashboard-api
     avg_temp_map = {k: {"sum": 0, "cnt": 0} for k in TIME_ORDER}
-    cutoff_24h = now - timedelta(hours=24)
+    today_start = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
     for agg in aggregates:
-        if agg.timestamp >= cutoff_24h:
+        if today_start <= agg.timestamp <= now_kst:
             h = agg.timestamp.hour
             slot = f"{h - (h % 2):02}"
             if slot in avg_temp_map:
                 avg_temp_map[slot]["sum"] += agg.total_risk_score
                 avg_temp_map[slot]["cnt"] += agg.risk_score_count
-    
-    curr_h = now.hour
+
+
+    # 현재 버퍼에 있는 데이터도 실시간 반영
+    curr_h = now_kst.hour
     curr_slot = f"{curr_h - (curr_h % 2):02}"
     if curr_slot in avg_temp_map:
         avg_temp_map[curr_slot]["sum"] += buffer_manager.buffer['risk_score_sum']
@@ -113,9 +209,13 @@ def dashboard():
         avg = round(val["sum"] / val["cnt"]) if val["cnt"] > 0 else 0
         avg_risk_final[k] = avg
 
+<<<<<<< HEAD
+=======
+    # --- B. Trend (월별 추이) ---
+>>>>>>> feature/dashboard-api
     trend_keys = []
     for i in range(11, -1, -1):
-        d = now - relativedelta(months=i)
+        d = now_kst - relativedelta(months=i)
         trend_keys.append(d.strftime("%Y-%m"))
     trend_temp = {k: 0.0 for k in trend_keys}
 
@@ -124,17 +224,18 @@ def dashboard():
         if k in trend_temp:
             trend_temp[k] += agg.high_risk_value_sum
             
-    curr_month_key = now.strftime("%Y-%m")
+    # 현재 월 버퍼 데이터 합산
+    curr_month_key = now_kst.strftime("%Y-%m")
     if curr_month_key in trend_temp:
         trend_temp[curr_month_key] += buffer_manager.buffer.get('high_risk_value_sum', 0.0)
     
     trend_final = {k: round(v, 2) for k, v in trend_temp.items()}
     total_trend_value = sum(trend_final.values())
-    trend_response_object = {
-        "value": int(total_trend_value), 
-        "trend": trend_final             
-    }
 
+<<<<<<< HEAD
+=======
+    # --- C. Chain Stats (기간별 체인 분포) ---
+>>>>>>> feature/dashboard-api
     chain_temp = {}
     for p_key in PERIOD_ORDER:
         chain_temp[p_key] = {c: 0 for c in TARGET_CHAINS}
@@ -150,7 +251,7 @@ def dashboard():
         except: return "Others"
 
     for agg in aggregates:
-        if agg.timestamp.year == now.year:
+        if agg.timestamp.year == now_kst.year:
             p_key = get_period_key(agg.timestamp)
             if p_key in chain_temp and agg.chain_data:
                 for raw_key, count in agg.chain_data.items():
@@ -158,14 +259,21 @@ def dashboard():
                     target = name if name in TARGET_CHAINS else "Others"
                     if target in chain_temp[p_key]: chain_temp[p_key][target] += count
     
-    curr_p_key = get_period_key(now)
+    # 현재 버퍼 데이터 합산
+    curr_p_key = get_period_key(now_kst)
     if curr_p_key in chain_temp:
         for raw_key, count in buffer_manager.buffer['chain_counts'].items():
             name = get_chain_name(raw_key)
             target = name if name in TARGET_CHAINS else "Others"
             if target in chain_temp[curr_p_key]: chain_temp[curr_p_key][target] += count
+<<<<<<< HEAD
     
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+=======
+
+    # --- D. Top Cards (오늘의 경고/위험 건수) ---
+    today_start = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
+>>>>>>> feature/dashboard-api
     stats_today = db.session.query(
         func.sum(RiskAggregate.warning_tx_count),
         func.sum(RiskAggregate.high_risk_tx_count)
@@ -174,13 +282,22 @@ def dashboard():
     final_warning = (stats_today[0] or 0) + buffer_manager.buffer['warning_count']
     final_high = (stats_today[1] or 0) + buffer_manager.buffer['high_risk_count']
 
+<<<<<<< HEAD
+=======
+    # =====================================================
+    # [최종 응답]
+    # =====================================================
+>>>>>>> feature/dashboard-api
     response = {
         "data": {
             "totalVolume": DUNE_CACHE["data"]["totalVolume"],
             "totalTransactions": DUNE_CACHE["data"]["totalTransactions"],
             "highRiskTransactions": { "value": int(final_high), "changeRate": "0.0%" },
             "warningTransactions": { "value": int(final_warning), "changeRate": "0.0%" },
-            "highRiskTransactionTrend": trend_response_object,
+            "highRiskTransactionTrend": {
+                "value": int(total_trend_value), 
+                "trend": trend_final 
+            },
             "highRiskTransactionsByChain": chain_temp,
             "averageRiskScore": avg_risk_final
         }
@@ -190,7 +307,5 @@ def dashboard():
 
 @bp.route('/flush', methods=['POST'])
 def force_flush():
-    if buffer_manager.buffer['risk_score_count'] == 0:
-        return jsonify({"status": "ignored", "message": "Buffer empty"}), 200
     buffer_manager.flush_to_db()
     return jsonify({"status": "success", "message": "Flushed"}), 200
