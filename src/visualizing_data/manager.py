@@ -18,35 +18,7 @@ class BufferManager:
             "chain_counts": {}
         }
 
-<<<<<<< HEAD
-    def add_data(self, data):
-        print(f"👀 [Manager] 데이터 수신! 구조 확인 중...")
-        
-        if not data or 'data' not in data or 'nodes' not in data['data']:
-            print("❌ [Manager] 데이터 구조가 이상합니다 (nodes 없음)")
-            return
-        
-        try:
-            node = data['data']['nodes'][0]
-            risk = node.get('risk', {})
-            
-            score = risk.get("risk_score", 0)
-            raw_level = risk.get("risk_level", "")
-            level = str(raw_level).lower()
-            
-            val = float(risk.get("amount_usd", 0.0) or 0.0)
-            
-            raw_cid = node.get("chain_id")
-            try:
-                c_id = int(raw_cid)
-            except:
-                c_id = -1
 
-            print(f"✅ [Manager] 추출 성공! Level: '{level}' (원본: {raw_level}), Value: {val}, ChainID: {c_id}")
-
-            self.buffer["risk_score_sum"] += score
-            self.buffer["risk_score_count"] += 1
-=======
     def parse_time(self, ts):
         if not ts: return None
         try:
@@ -65,7 +37,6 @@ class BufferManager:
             if score is not None:
                 self.buffer['risk_score_sum'] += int(score)
                 self.buffer['risk_score_count'] += 1
->>>>>>> feature/dashboard-api
 
             # 2. Risk Level 집계
             level = str(data.get('risk_level', '')).lower()
@@ -82,14 +53,6 @@ class BufferManager:
             if chain_id is not None:
                 cid = int(chain_id) if str(chain_id).isdigit() else chain_id
                 self.buffer['chain_counts'][cid] = self.buffer['chain_counts'].get(cid, 0) + 1
-
-<<<<<<< HEAD
-            chain_name = CHAIN_ID_MAP.get(c_id, "Others")
-            self.buffer["chain_counts"][chain_name] += 1
-            print(f"🔗 [Manager] 체인 분류: {chain_name} (ID: {c_id})")
-            
-=======
->>>>>>> feature/dashboard-api
         except Exception as e:
             print(f"Buffer Add Error: {e}")
 

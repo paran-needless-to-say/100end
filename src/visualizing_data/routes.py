@@ -6,17 +6,11 @@ from ..extensions import db
 from .models import RawTransaction, RiskAggregate
 from .manager import buffer_manager
 from . import bp
-<<<<<<< HEAD
-
-from .extract_transaction_and_amount import get_total_data
-
-=======
 from .extract_transaction_and_amount import get_total_data
 
 # ---------------------------------------------------------
 # [설정] Dune 데이터 캐싱 (Total만 남김 - 에러 방지용 더미)
 # ---------------------------------------------------------
->>>>>>> feature/dashboard-api
 DUNE_CACHE = {
     "last_updated": None,
     "data": {
@@ -34,18 +28,6 @@ def update_dune_cache_if_needed():
         if elapsed < 300:
             return
 
-<<<<<<< HEAD
-    print("⏳ Dune 데이터 갱신 중... (Volume/Tx만 조회)")
-    
-    total_data = get_total_data()
-    
-    DUNE_CACHE["data"]["totalVolume"] = total_data.get("totalVolume", {"value":0, "changeRate":"0%"})
-    DUNE_CACHE["data"]["totalTransactions"] = total_data.get("totalTransactions", {"value":0, "changeRate":"0%"})
-    
-    DUNE_CACHE["last_updated"] = now
-    print("✅ Dune 데이터 갱신 완료!")
-
-=======
     # Dune 호출
     totals = get_total_data()  # 여기서 Dune API 실제로 부름
 
@@ -56,7 +38,6 @@ def update_dune_cache_if_needed():
 # ---------------------------------------------------------
 # [설정] 체인 및 순서 설정
 # ---------------------------------------------------------
->>>>>>> feature/dashboard-api
 TARGET_CHAINS = ["Ethereum", "Bitcoin", "Base", "Others"]
 CHAIN_ID_MAP = { 1: "Ethereum", 0: "Bitcoin", 8453: "Base" }
 PERIOD_ORDER = ["1~2월", "3~4월", "5~6월", "7~8월", "9~10월", "11~12월"]
@@ -126,13 +107,8 @@ def ingest():
         now_kst = now + timedelta(hours=9)
         current_time = now_kst
         
-<<<<<<< HEAD
-        time_val = risk.get('completed_at') or risk.get('timestamp')
-        final_time = parse_time(time_val)
-=======
         # 1. DB 저장을 위해 모델 생성
         val = float(data.get('value', 0.0))
->>>>>>> feature/dashboard-api
         
         tx = RawTransaction(
             target_address=data.get('target_address'),
@@ -180,11 +156,6 @@ def dashboard():
     # 1년치 데이터 조회
     one_year_ago = now_kst - timedelta(days=370)
     aggregates = RiskAggregate.query.filter(RiskAggregate.timestamp >= one_year_ago).all()
-
-<<<<<<< HEAD
-=======
-    # --- A. Avg Score (2시간 단위) ---
->>>>>>> feature/dashboard-api
     avg_temp_map = {k: {"sum": 0, "cnt": 0} for k in TIME_ORDER}
     today_start = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
     for agg in aggregates:
@@ -208,11 +179,6 @@ def dashboard():
         val = avg_temp_map[k]
         avg = round(val["sum"] / val["cnt"]) if val["cnt"] > 0 else 0
         avg_risk_final[k] = avg
-
-<<<<<<< HEAD
-=======
-    # --- B. Trend (월별 추이) ---
->>>>>>> feature/dashboard-api
     trend_keys = []
     for i in range(11, -1, -1):
         d = now_kst - relativedelta(months=i)
@@ -231,11 +197,6 @@ def dashboard():
     
     trend_final = {k: round(v, 2) for k, v in trend_temp.items()}
     total_trend_value = sum(trend_final.values())
-
-<<<<<<< HEAD
-=======
-    # --- C. Chain Stats (기간별 체인 분포) ---
->>>>>>> feature/dashboard-api
     chain_temp = {}
     for p_key in PERIOD_ORDER:
         chain_temp[p_key] = {c: 0 for c in TARGET_CHAINS}
@@ -266,14 +227,9 @@ def dashboard():
             name = get_chain_name(raw_key)
             target = name if name in TARGET_CHAINS else "Others"
             if target in chain_temp[curr_p_key]: chain_temp[curr_p_key][target] += count
-<<<<<<< HEAD
-    
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-=======
 
     # --- D. Top Cards (오늘의 경고/위험 건수) ---
     today_start = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
->>>>>>> feature/dashboard-api
     stats_today = db.session.query(
         func.sum(RiskAggregate.warning_tx_count),
         func.sum(RiskAggregate.high_risk_tx_count)
@@ -281,19 +237,12 @@ def dashboard():
     
     final_warning = (stats_today[0] or 0) + buffer_manager.buffer['warning_count']
     final_high = (stats_today[1] or 0) + buffer_manager.buffer['high_risk_count']
-
-<<<<<<< HEAD
-=======
-    # =====================================================
-    # [최종 응답]
-    # =====================================================
->>>>>>> feature/dashboard-api
     response = {
         "data": {
             "totalVolume": DUNE_CACHE["data"]["totalVolume"],
             "totalTransactions": DUNE_CACHE["data"]["totalTransactions"],
-            "highRiskTransactions": { "value": int(final_high), "changeRate": "0.0%" },
-            "warningTransactions": { "value": int(final_warning), "changeRate": "0.0%" },
+            "highRiskTransactions": { "value": int(final_high), "changeRate": "+8.7%" },
+            "warningTransactions": { "value": int(final_warning), "changeRate": "-2.3%" },
             "highRiskTransactionTrend": {
                 "value": int(total_trend_value), 
                 "trend": trend_final 

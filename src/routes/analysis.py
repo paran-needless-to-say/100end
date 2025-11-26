@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from src.api.risk_scoring import analyze_address_with_risk_scoring
+from src.visualizing_data.routes import ingest_core
+
 
 bp = Blueprint('analysis', __name__, url_prefix='/api/analysis')
 
@@ -142,6 +144,11 @@ def get_risk_scoring():
             graph_data=graph_data,
             analysis_type=analysis_type
         )
+         #이거 연동 때문에 넣음
+        if request.method == 'POST':
+            ingest_core(result)
+        #여기까지가 연동 때문에 추가된 코드
+
         return jsonify({'data': result}), 200
     except Exception as e:
         return jsonify({'error': f'Risk scoring failed: {str(e)}'}), 500
