@@ -25,7 +25,6 @@ class Graph:
         if node_id in [node.ID for node in self.nodes]:
             return
 
-        # Get label from address_label.json if it exists
         label = get_address_label(chain_id=chain_id, address=address)
 
         self.nodes.append(Node(

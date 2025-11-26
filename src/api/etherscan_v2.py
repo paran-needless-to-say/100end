@@ -1,12 +1,7 @@
-"""
-Etherscan V2 API Client
-"""
 import requests
 from typing import Dict, Any, List
 
-
 class EtherscanV2Client:
-    """Etherscan V2 API Client"""
     
     BASE_URL = "https://api.etherscan.io/v2/api"
     
@@ -15,7 +10,6 @@ class EtherscanV2Client:
         self.session = requests.Session()
     
     def _make_request(self, params: Dict[str, Any], chain_id: int = 1) -> Dict[str, Any]:
-        """Make API request to Etherscan V2"""
         params['apikey'] = self.api_key
         params['chainid'] = chain_id  # V2 requires chainid parameter
         
@@ -41,7 +35,6 @@ class EtherscanV2Client:
         offset: int = 100,
         sort: str = 'desc'
     ) -> List[Dict[str, Any]]:
-        """Get normal transactions for an address"""
         params = {
             'module': 'account',
             'action': 'txlist',
@@ -67,7 +60,6 @@ class EtherscanV2Client:
         sort: str = 'desc',
         contractaddress: str = None
     ) -> List[Dict[str, Any]]:
-        """Get ERC20 token transfers for an address"""
         params = {
             'module': 'account',
             'action': 'tokentx',
@@ -95,7 +87,6 @@ class EtherscanV2Client:
         offset: int = 100,
         sort: str = 'desc'
     ) -> List[Dict[str, Any]]:
-        """Get internal transactions for an address"""
         params = {
             'module': 'account',
             'action': 'txlistinternal',
@@ -111,7 +102,6 @@ class EtherscanV2Client:
         return result.get('result', [])
     
     def get_balance(self, chain_id: int, address: str) -> str:
-        """Get ETH balance for an address"""
         params = {
             'module': 'account',
             'action': 'balance',
@@ -121,4 +111,3 @@ class EtherscanV2Client:
         
         result = self._make_request(params, chain_id)
         return result.get('result', '0')
-

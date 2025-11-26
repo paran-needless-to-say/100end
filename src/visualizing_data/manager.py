@@ -21,7 +21,6 @@ class BufferManager:
         }
 
     def add_data(self, data):
-        # --- [디버깅 로그] ---
         print(f"👀 [Manager] 데이터 수신! 구조 확인 중...")
         
         if not data or 'data' not in data or 'nodes' not in data['data']:
@@ -32,25 +31,20 @@ class BufferManager:
             node = data['data']['nodes'][0]
             risk = node.get('risk', {})
             
-            # 값 추출 및 형변환
             score = risk.get("risk_score", 0)
             raw_level = risk.get("risk_level", "")
             level = str(raw_level).lower()
             
-            # ★ amount_usd 파싱
             val = float(risk.get("amount_usd", 0.0) or 0.0)
             
-            # ★ chain_id 파싱 (문자열일 수도 있으니 int 변환 시도)
             raw_cid = node.get("chain_id")
             try:
                 c_id = int(raw_cid)
             except:
                 c_id = -1
 
-            # --- [디버깅 로그] 추출된 값 확인 ---
             print(f"✅ [Manager] 추출 성공! Level: '{level}' (원본: {raw_level}), Value: {val}, ChainID: {c_id}")
 
-            # 버퍼 누적 로직
             self.buffer["risk_score_sum"] += score
             self.buffer["risk_score_count"] += 1
 
@@ -64,7 +58,6 @@ class BufferManager:
             else:
                 print(f"⚠️ [Manager] High Risk 조건 불만족 (Level이 '{level}'임)")
 
-            # 체인 카운트
             chain_name = CHAIN_ID_MAP.get(c_id, "Others")
             self.buffer["chain_counts"][chain_name] += 1
             print(f"🔗 [Manager] 체인 분류: {chain_name} (ID: {c_id})")

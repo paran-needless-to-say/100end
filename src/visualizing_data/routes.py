@@ -8,18 +8,13 @@ from .models import RawTransaction, RiskAggregate
 from .manager import buffer_manager
 from . import bp
 
-# ▼ [수정] High Transaction 관련 파일 임포트 삭제
 from .extract_transaction_and_amount import get_total_data
 
-# ---------------------------------------------------------
-# [설정] 1. Dune 데이터 캐싱 (Total만 남김)
-# ---------------------------------------------------------
 DUNE_CACHE = {
     "last_updated": None,
     "data": {
         "totalVolume": {"value": 0, "changeRate": "0%"},
         "totalTransactions": {"value": 0, "changeRate": "0%"}
-        # RecentHighValueTransfers 삭제됨
     }
 }
 
@@ -32,7 +27,6 @@ def update_dune_cache_if_needed():
 
     print("⏳ Dune 데이터 갱신 중... (Volume/Tx만 조회)")
     
-    # Total Data만 가져옴 (속도 빨라짐)
     total_data = get_total_data()
     
     DUNE_CACHE["data"]["totalVolume"] = total_data.get("totalVolume", {"value":0, "changeRate":"0%"})
@@ -41,9 +35,6 @@ def update_dune_cache_if_needed():
     DUNE_CACHE["last_updated"] = now
     print("✅ Dune 데이터 갱신 완료!")
 
-# ---------------------------------------------------------
-# [설정] 2. 체인 및 순서 설정
-# ---------------------------------------------------------
 TARGET_CHAINS = ["Ethereum", "Bitcoin", "Base", "Others"]
 CHAIN_ID_MAP = { 1: "Ethereum", 0: "Bitcoin", 8453: "Base" }
 PERIOD_ORDER = ["1~2월", "3~4월", "5~6월", "7~8월", "9~10월", "11~12월"]
@@ -54,9 +45,6 @@ def parse_time(ts):
     try: return datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
     except: return datetime.utcnow()
 
-# ---------------------------------------------------------
-# 1. 데이터 수집 (Ingest)
-# ---------------------------------------------------------
 @bp.route('/ingest', methods=['POST'])
 def ingest():
     data = request.get_json()
@@ -70,7 +58,6 @@ def ingest():
         risk = node.get('risk', {})
         val = float(risk.get("amount_usd", 0.0) or 0.0)
         
-        # 시간 값 찾기
         time_val = risk.get('completed_at') or risk.get('timestamp')
         final_time = parse_time(time_val)
         
@@ -96,10 +83,6 @@ def ingest():
         
     return jsonify({"status": "ok", "current_buffer": buffer_manager.buffer['risk_score_count']}), 201
 
-
-# ---------------------------------------------------------
-# 2. 대시보드 통계 (Dashboard)
-# ---------------------------------------------------------
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
     now = datetime.utcnow()
@@ -108,7 +91,6 @@ def dashboard():
     one_year_ago = now - timedelta(days=370)
     aggregates = RiskAggregate.query.filter(RiskAggregate.timestamp >= one_year_ago).all()
 
-    # --- A. Avg Score ---
     avg_temp_map = {k: {"sum": 0, "cnt": 0} for k in TIME_ORDER}
     cutoff_24h = now - timedelta(hours=24)
     for agg in aggregates:
@@ -131,7 +113,6 @@ def dashboard():
         avg = round(val["sum"] / val["cnt"]) if val["cnt"] > 0 else 0
         avg_risk_final[k] = avg
 
-    # --- B. Trend ---
     trend_keys = []
     for i in range(11, -1, -1):
         d = now - relativedelta(months=i)
@@ -154,7 +135,6 @@ def dashboard():
         "trend": trend_final             
     }
 
-    # --- C. Chain Stats ---
     chain_temp = {}
     for p_key in PERIOD_ORDER:
         chain_temp[p_key] = {c: 0 for c in TARGET_CHAINS}
@@ -185,7 +165,6 @@ def dashboard():
             target = name if name in TARGET_CHAINS else "Others"
             if target in chain_temp[curr_p_key]: chain_temp[curr_p_key][target] += count
     
-    # --- D. Top Cards ---
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     stats_today = db.session.query(
         func.sum(RiskAggregate.warning_tx_count),
@@ -195,9 +174,6 @@ def dashboard():
     final_warning = (stats_today[0] or 0) + buffer_manager.buffer['warning_count']
     final_high = (stats_today[1] or 0) + buffer_manager.buffer['high_risk_count']
 
-    # =====================================================
-    # [최종 응답] 리스트 삭제됨
-    # =====================================================
     response = {
         "data": {
             "totalVolume": DUNE_CACHE["data"]["totalVolume"],
@@ -207,7 +183,6 @@ def dashboard():
             "highRiskTransactionTrend": trend_response_object,
             "highRiskTransactionsByChain": chain_temp,
             "averageRiskScore": avg_risk_final
-            # RecentHighValueTransfers 키 자체가 삭제됨
         }
     }
     

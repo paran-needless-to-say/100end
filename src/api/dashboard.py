@@ -14,12 +14,10 @@ LOCAL_CACHE = {
 }
 CACHE_TTL = 60
 
-
 def is_cache_valid():
     if LOCAL_CACHE["timestamp"] is None:
         return False
     return (datetime.utcnow() - LOCAL_CACHE["timestamp"]) < timedelta(seconds=CACHE_TTL)
-
 
 def fetch_dune_cached():
     url = f"{BASE}query/{QUERY_ID}/results"
@@ -28,7 +26,6 @@ def fetch_dune_cached():
     if resp.get("state") == "QUERY_STATE_COMPLETED":
         return resp["result"]["rows"]
     return None
-
 
 def fetch_dune_force_execute():
     exec_url = f"{BASE}query/{QUERY_ID}/execute"
@@ -59,9 +56,7 @@ def fetch_dune_force_execute():
 
     return final["result"]["rows"]
 
-
 def get_dune_results():
-    # Dune API 키가 없으면 빈 리스트 반환 (에러 로그 출력)
     dune_api_key = os.getenv("DUNE_API_KEY")
     if not dune_api_key:
         print("⚠️  DUNE_API_KEY environment variable is not set. Dune API를 사용할 수 없습니다.")
@@ -87,7 +82,6 @@ def get_dune_results():
         LOCAL_CACHE["data"] = executed
         return executed
     except Exception as e:
-        # Dune API 오류 시 상세 로그 출력
         print(f"❌ Dune API 오류: {type(e).__name__}: {str(e)}")
         import traceback
         print(f"   상세 오류: {traceback.format_exc()}")

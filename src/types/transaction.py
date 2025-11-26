@@ -4,5 +4,4 @@ from dataclasses import dataclass
 class Txtype:
     NATIVE: str = "Native Transfer"
     ERC20: str = "ERC20 Transfer"
-    # SWAP: str = "SWAP"
     BRIDGE: str = "Bridge"

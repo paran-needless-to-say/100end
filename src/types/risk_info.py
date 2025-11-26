@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
-
 @dataclass
 class RiskInfo:
     risk_score: int = 0

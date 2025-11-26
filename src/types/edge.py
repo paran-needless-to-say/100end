@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 @dataclass
 class Edge:
     CHAIN_ID: int
