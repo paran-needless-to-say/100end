@@ -11,4 +11,4 @@ if not api_key:
 app = create_app(api_key=api_key)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8888, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)

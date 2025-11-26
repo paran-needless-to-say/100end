@@ -3,40 +3,10 @@ from src.api.risk_scoring import analyze_address_with_risk_scoring
 
 bp = Blueprint('analysis', __name__, url_prefix='/api/analysis')
 
-@bp.route('/transaction-flow', methods=['GET'])
-def get_transaction_flow():
-    chain_id = request.args.get('chain_id')
-    tx_hash = request.args.get('tx_hash')
-    max_hops = request.args.get('max_hops', '3')
-
-    if not chain_id:
-        return jsonify({'error': 'chain_id is required'}), 400
-    if not tx_hash:
-        return jsonify({'error': 'tx_hash is required'}), 400
-
-    try:
-        chain_id = int(chain_id)
-        max_hops = int(max_hops)
-    except ValueError:
-        return jsonify({'error': 'chain_id and max_hops must be valid integers'}), 400
-
-    try:
-        analyzer = current_app.analyzer
-        flow_data = analyzer.get_transaction_fund_flow(
-            chain_id=chain_id,
-            tx_hash=tx_hash,
-            max_hops=max_hops
-        )
-        return jsonify({'data': flow_data}), 200
-    except Exception as e:
-        return jsonify({'error': f'Transaction analysis failed: {str(e)}'}), 500
-
 @bp.route('/fund-flow', methods=['GET'])
 def get_fund_flow():
     chain_id = request.args.get('chain_id')
     address = request.args.get('address')
-    max_hops = request.args.get('max_hops', '2')
-    max_addresses = request.args.get('max_addresses', '10')
 
     if not chain_id:
         return jsonify({'error': 'chain_id is required'}), 400
@@ -45,18 +15,13 @@ def get_fund_flow():
 
     try:
         chain_id = int(chain_id)
-        max_hops = int(max_hops)
-        max_addresses = int(max_addresses)
     except ValueError:
-        return jsonify({'error': 'chain_id, max_hops, and max_addresses must be valid integers'}), 400
-
+        return jsonify({'error': 'chain_id must be a valid integer'}), 400
     try:
         analyzer = current_app.analyzer
-        fund_flow = analyzer.get_multihop_fund_flow_for_scoring(
+        fund_flow = analyzer.get_fund_flow_by_address(
             chain_id=chain_id,
-            address=address,
-            max_hops=max_hops,
-            max_addresses_per_direction=max_addresses
+            address=address
         )
         return jsonify({'data': fund_flow}), 200
     except Exception as e:

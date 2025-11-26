@@ -38,7 +38,6 @@ def _initialize_extensions(app: Flask):
     migrate.init_app(app, db)
 
     with app.app_context():
-        from src.visualizing_data import models
         db.create_all()
 
 def _register_routes(app: Flask, api_key: str):
