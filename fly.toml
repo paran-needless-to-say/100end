@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for paran-backend on 2025-11-26T09:58:08+09:00
+# fly.toml app configuration file generated for trace-x-backend on 2025-11-26T17:52:17Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'paran-backend'
+app = 'trace-x-backend'
 primary_region = 'nrt'
 
 [build]

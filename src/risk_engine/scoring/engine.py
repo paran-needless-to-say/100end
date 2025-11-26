@@ -42,8 +42,8 @@ class ScoringResult:
     value: float
 
 class TransactionScorer:
-    
-    def __init__(self, rules_path: str = "rules/tracex_rules.yaml"):
+
+    def __init__(self, rules_path: str = None):
         self.rule_evaluator = RuleEvaluator(rules_path)
         self.list_loader = ListLoader()
     

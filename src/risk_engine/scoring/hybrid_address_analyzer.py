@@ -17,10 +17,10 @@ class HybridAddressAnalysisResult(AddressAnalysisResult):
     ml_details: Dict[str, Any] = field(default_factory=dict)
 
 class HybridAddressAnalyzer:
-    
+
     def __init__(
         self,
-        rules_path: str = "rules/tracex_rules.yaml",
+        rules_path: str = None,
         rule_weight: float = 0.7,
         ml_weight: float = 0.3,
         use_ml: bool = True

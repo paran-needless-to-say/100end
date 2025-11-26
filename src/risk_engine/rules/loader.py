@@ -3,10 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, Optional
 import yaml
+import os
 
 class RuleLoader:
-    
-    def __init__(self, rules_path: str = "rules/tracex_rules.yaml"):
+
+    def __init__(self, rules_path: str = None):
+        if rules_path is None:
+            # 현재 파일 위치 기준으로 tracex_rules.yaml 찾기
+            current_dir = Path(__file__).parent
+            rules_path = current_dir / "tracex_rules.yaml"
         self.rules_path = Path(rules_path)
         self._ruleset: Optional[Dict[str, Any]] = None
     

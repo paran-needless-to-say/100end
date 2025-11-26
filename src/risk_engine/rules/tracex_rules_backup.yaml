@@ -1,0 +1,481 @@
+defaults:
+  currency: USD
+  fields:
+    from: from
+    timestamp: timestamp
+    to: to
+    token: token
+    tx_hash: tx_hash
+    usd_value: usd_value
+meta:
+  description: Compliance/Exposure/Behavior rulebook v1 (implementation spec)
+  namespace: TRACE-X
+  version: '1.0'
+rules:
+- axis: C
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 1
+  description: Direct interaction with SDN list
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: from
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: to
+        key: CEX_INTERNAL
+  id: C-001
+  match:
+    any:
+    - in_list:
+        field: from
+        list: SDN_LIST
+    - in_list:
+        field: to
+        list: SDN_LIST
+  name: Sanction Direct Touch
+  score: 30
+  severity: HIGH
+- axis: C
+  conditions:
+    all:
+    - tag:
+        equals: VASP
+        field: counterparty
+        key: type
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: counterparty
+        key: safe_vasp
+  id: C-002
+  match:
+    any:
+    - tag:
+        field: counterparty
+        in:
+        - IR
+        - RU
+        - KP
+        key: country
+  name: High-Risk Jurisdiction VASP
+  score: 20
+  severity: MEDIUM
+- axis: C
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 3000
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: from
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: to
+        key: CEX_INTERNAL
+  id: C-003
+  name: High-Value Single Transfer
+  score: 25
+  severity: MEDIUM
+- aggregations:
+  - sum_gte:
+      field: usd_value
+      value: 5000
+  - count_gte:
+      value: 2
+  - every_gte:
+      field: usd_value
+      value: 1000
+  axis: C
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: address
+        key: MM_BOT
+    - tag:
+        equals: true
+        field: address
+        key: CEX_INTERNAL
+  id: C-004
+  name: High-Value Repeated Transfer (24h)
+  score: 20
+  severity: MEDIUM
+  window:
+    duration_sec: 86400
+    group_by:
+    - address
+- axis: E
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 20
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: address
+        key: REWARD_PAYOUT
+  id: E-101
+  match:
+    any:
+    - in_list:
+        field: from
+        list: MIXER_LIST
+  name: Mixer Direct Exposure
+  score: 32
+  severity: HIGH
+- axis: E
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 20
+  description: Direct interaction with Bridge contract
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: from
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: to
+        key: CEX_INTERNAL
+  id: E-104
+  match:
+    any:
+    - in_list:
+        field: from
+        list: BRIDGE_LIST
+    - in_list:
+        field: to
+        list: BRIDGE_LIST
+  name: Bridge Direct Exposure
+  score: 19
+  severity: MEDIUM
+- axis: E
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 200
+  description: Direct interaction with Scam address
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: from
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: to
+        key: CEX_INTERNAL
+  id: E-105
+  match:
+    any:
+    - in_list:
+        field: from
+        list: SCAM_LIST
+    - in_list:
+        field: to
+        list: SCAM_LIST
+  name: Scam Direct Exposure
+  score: 26
+  severity: MEDIUM
+- axis: E
+  conditions:
+    all:
+    - gte:
+        field: usd_value
+        value: 40
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: address
+        key: CEX_INTERNAL
+  id: E-102
+  match:
+    any:
+    - in_list:
+        field: address
+        list: SDN_HOP1
+    - in_list:
+        field: address
+        list: SDN_HOP2
+  name: "Indirect Sanctions Exposure (\u22642 hops)"
+  score: 39
+  severity: HIGH
+- axis: E
+  conditions:
+    all:
+    - gte:
+        field: counterparty.risk_score
+        value: 0.7
+  id: E-103
+  name: Counterparty Quality Risk
+  score: 19
+  score_range:
+  - 10
+  - 20
+  severity: MEDIUM
+- aggregations:
+  - count_gte:
+      value: 2
+  axis: B
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: address
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: address
+        key: MM_BOT
+  id: B-101
+  name: Burst (10m)
+  score: 15
+  severity: MEDIUM
+  window:
+    cooldown_sec: 1800
+    duration_sec: 600
+    group_by:
+    - address
+- aggregations:
+  - count_gte:
+      value: 3
+  axis: B
+  exceptions:
+    any:
+    - tag:
+        equals: true
+        field: address
+        key: CEX_INTERNAL
+    - tag:
+        equals: true
+        field: address
+        key: MM_BOT
+  id: B-102
+  name: Rapid Sequence (1m)
+  score: 20
+  severity: HIGH
+  window:
+    cooldown_sec: 900
+    duration_sec: 60
+    group_by:
+    - address
+- axis: B
+  conditions:
+    all:
+    - gte:
+        field: interarrival_std
+        value: 1.5
+    - gte:
+        field: usd_value
+        value: 20
+  id: B-103
+  name: Inter-arrival Std High
+  prerequisites:
+  - min_edges: 5
+  score: 10
+  severity: LOW
+- axis: B
+  id: B-201
+  name: Layering Chain (same token)
+  score: 25
+  severity: HIGH
+  topology:
+    hop_amount_delta_pct_lte: 5
+    hop_length_gte: 3
+    min_usd_value: 100
+    same_token: true
+- axis: B
+  id: B-202
+  name: Cycle (length 2-3, same token)
+  score: 30
+  severity: HIGH
+  topology:
+    cycle_length_in:
+    - 2
+    - 3
+    cycle_total_usd_gte: 100
+    same_token: true
+- aggregations:
+  - distinct_gte:
+      field: to
+      value: 5
+  - sum_gte:
+      field: usd_value
+      value: 1000
+  - every_gte:
+      field: usd_value
+      value: 100
+  axis: B
+  bucket:
+    group:
+    - chain_id
+    - token
+    - from
+    - bucket_10m
+    size_sec: 600
+  id: B-203
+  name: Fan-out (10m bucket)
+  score: 20
+  severity: MEDIUM
+- aggregations:
+  - distinct_gte:
+      field: from
+      value: 5
+  - sum_gte:
+      field: usd_value
+      value: 1000
+  - every_gte:
+      field: usd_value
+      value: 100
+  axis: B
+  bucket:
+    group:
+    - chain_id
+    - token
+    - to
+    - bucket_10m
+    size_sec: 600
+  id: B-204
+  name: Fan-in (10m bucket)
+  score: 20
+  severity: MEDIUM
+- axis: B
+  conditions:
+    all:
+    - lte:
+        field: age_days
+        value: 7
+    - gte:
+        field: first7d_usd
+        value: 10000
+    - gte:
+        field: first7d_tx_count
+        value: 3
+  id: B-401
+  name: First 7 Days Burst
+  score: 20
+  severity: MEDIUM
+  state:
+    required:
+    - first_seen_ts
+    - first7d_usd
+    - first7d_tx_count
+- axis: B
+  conditions:
+    all:
+    - gte:
+        field: age_days
+        value: 365
+    - gte:
+        field: inactive_days
+        value: 180
+    - gte:
+        field: usd_value
+        value: 1000
+  id: B-402
+  name: Reactivation
+  score: 15
+  severity: LOW
+  state:
+    required:
+    - first_seen_ts
+    - last_seen_ts
+- axis: B
+  conditions:
+    all:
+    - lte:
+        field: age_days
+        value: 30
+    - gte:
+        field: tx_count_30d
+        value: 100
+    - gte:
+        field: median_usd_30d
+        value: 100
+  id: B-403A
+  name: "Lifecycle A \u2014 Young but Busy"
+  score: 10
+  severity: LOW
+- axis: B
+  conditions:
+    all:
+    - gte:
+        field: age_days
+        value: 365
+    - lte:
+        field: tx_count_total
+        value: 10
+    - gte:
+        field: total_usd_total
+        value: 50000
+    - gte:
+        field: median_usd_total
+        value: 5000
+  id: B-403B
+  name: "Lifecycle B \u2014 Old and Rare High Value"
+  score: 10
+  severity: LOW
+- axis: B
+  buckets:
+    field: usd_value
+    ranges:
+    - max: 5000
+      min: 1000
+      score: 3
+    - max: 10000
+      min: 5000
+      score: 6
+    - max: 50000
+      min: 10000
+      score: 9
+    - max: 250000
+      min: 50000
+      score: 14
+    - max: 1000000
+      min: 250000
+      score: 21
+    - min: 1000000
+      score: 30
+  id: B-501
+  name: High-Value Buckets
+  score: dynamic
+  severity: MEDIUM
+- aggregations:
+  - any_gte:
+      field: usd_value
+      value: 10000000
+  - group_by_value: rounded_value
+  - per_group:
+    - count_gte:
+        value: 5
+    - sum_gte:
+        field: usd_value
+        value: 10000
+  axis: B
+  id: B-502
+  name: "Structuring \u2014 Rounded Value Repetition (24h outgoing)"
+  score: 10
+  severity: LOW
+  window:
+    duration_sec: 86400
+    group_by:
+    - address
+    - direction:outgoing

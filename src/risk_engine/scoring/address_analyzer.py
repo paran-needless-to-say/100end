@@ -23,11 +23,11 @@ class AddressAnalysisResult:
     completed_at: str = ""  # ISO8601 UTC 형식의 스코어링 완료 시각
 
 class AddressAnalyzer:
-    
-    def __init__(self, rules_path: str = "rules/tracex_rules.yaml"):
+
+    def __init__(self, rules_path: str = None):
         self.history = TransactionHistory()
         window_evaluator = WindowEvaluator(self.history)
-        
+
         self.rule_evaluator = RuleEvaluator(rules_path, window_evaluator)
     
     def analyze_address(

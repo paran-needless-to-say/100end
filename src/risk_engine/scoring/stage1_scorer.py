@@ -5,10 +5,10 @@ from ..rules.evaluator import RuleEvaluator
 from .improved_rule_scorer import ImprovedRuleScorer
 
 class Stage1Scorer:
-    
+
     def __init__(
         self,
-        rules_path: str = "rules/tracex_rules.yaml",
+        rules_path: str = None,
         rule_weight: float = 0.9,
         graph_weight: float = 0.1
     ):

@@ -56,6 +56,7 @@ logs/
 htmlcov/
 .tox/
 .hypothesis/
+test/
 
 # Documentation (optional, uncomment if you don't want docs in image)
 # docs/
@@ -83,3 +84,5 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+.ignore_folder/

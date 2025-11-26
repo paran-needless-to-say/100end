@@ -11,8 +11,8 @@ from src.risk_engine.aggregation.stats import StatisticsCalculator
 from src.risk_engine.aggregation.topology import TopologyEvaluator
 
 class RuleEvaluator:
-    
-    def __init__(self, rules_path: str = "rules/tracex_rules.yaml", window_evaluator: Optional[WindowEvaluator] = None, bucket_evaluator: Optional[BucketEvaluator] = None):
+
+    def __init__(self, rules_path: str = None, window_evaluator: Optional[WindowEvaluator] = None, bucket_evaluator: Optional[BucketEvaluator] = None):
         self.rule_loader = RuleLoader(rules_path)
         self.list_loader = ListLoader()
         self.ruleset = self.rule_loader.load()
