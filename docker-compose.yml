@@ -8,7 +8,7 @@ services:
     container_name: 100end-backend
     restart: unless-stopped
     ports:
-      - "8888:8888"
+      - "8080:8080"
     env_file:
       - .env
     environment:
@@ -21,7 +21,7 @@ services:
     networks:
       - backend-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/api/dashboard/summary"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/dashboard/summary"]
       interval: 30s
       timeout: 10s
       retries: 3

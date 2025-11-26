@@ -23,7 +23,6 @@ NATIVE_TOKEN_DECIMALS = 18
 DEFAULT_START_BLOCK = 0
 DEFAULT_END_BLOCK = 99999999
 
-
 class Analyzer:
     def __init__(self, api_key: str):
         self.scanner = EtherscanV2Client(api_key=api_key)
@@ -170,35 +169,32 @@ class Analyzer:
             amount_float = amount / 10 ** NATIVE_TOKEN_DECIMALS
             amount = str(amount_float)
             token_symbol = 'ETH'
-            # CoinMarketCap API를 사용하여 실시간 ETH 가격 가져오기
             try:
                 eth_price_data = get_token_price("ETH")
                 if eth_price_data:
                     usd_value = amount_float * eth_price_data["price"]
                 else:
-                    usd_value = amount_float * 2000  # 기본값
+                    usd_value = amount_float * 2000
             except Exception as e:
                 print(f"Warning: Failed to get ETH price: {e}")
-                usd_value = amount_float * 2000  # 기본값
+                usd_value = amount_float * 2000
         elif tx_type == TxTypes.ERC20_TRANSFER:
             decimals = int(tx['tokenDecimal'])
             amount_float = amount / 10 ** decimals
             amount = str(amount_float)
             token_address = tx['contractAddress']
             token_symbol = tx.get('tokenSymbol', 'UNKNOWN')
-            # ERC20 토큰의 USD 가치 계산 (지원되는 토큰만)
             try:
                 token_price_data = get_token_price(token_symbol)
                 if token_price_data:
                     usd_value = amount_float * token_price_data["price"]
                 else:
-                    usd_value = 0  # 가격 정보 없음
+                    usd_value = 0
             except Exception as e:
                 print(f"Warning: Failed to get {token_symbol} price: {e}")
                 usd_value = 0
         elif tx_type in (TxTypes.BRIDGE, TxTypes.SWAP):
             amount = str(amount)
-            # 브릿지/스왑의 USD 가치는 추후 구현 (일단 0)
             usd_value = 0
 
         graph.add_edge(
@@ -240,35 +236,32 @@ class Analyzer:
             amount_float = amount / 10 ** NATIVE_TOKEN_DECIMALS
             amount = str(amount_float)
             token_symbol = 'ETH'
-            # CoinMarketCap API를 사용하여 실시간 ETH 가격 가져오기
             try:
                 eth_price_data = get_token_price("ETH")
                 if eth_price_data:
                     usd_value = amount_float * eth_price_data["price"]
                 else:
-                    usd_value = amount_float * 2000  # 기본값
+                    usd_value = amount_float * 2000
             except Exception as e:
                 print(f"Warning: Failed to get ETH price: {e}")
-                usd_value = amount_float * 2000  # 기본값
+                usd_value = amount_float * 2000
         elif tx_type == TxTypes.ERC20_TRANSFER:
             decimals = int(tx['tokenDecimal'])
             amount_float = amount / 10 ** decimals
             amount = str(amount_float)
             token_address = tx['contractAddress']
             token_symbol = tx.get('tokenSymbol', 'UNKNOWN')
-            # ERC20 토큰의 USD 가치 계산 (지원되는 토큰만)
             try:
                 token_price_data = get_token_price(token_symbol)
                 if token_price_data:
                     usd_value = amount_float * token_price_data["price"]
                 else:
-                    usd_value = 0  # 가격 정보 없음
+                    usd_value = 0
             except Exception as e:
                 print(f"Warning: Failed to get {token_symbol} price: {e}")
                 usd_value = 0
         elif tx_type in (TxTypes.BRIDGE, TxTypes.SWAP):
             amount = str(amount)
-            # 브릿지/스왑의 USD 가치는 추후 구현 (일단 0)
             usd_value = 0
 
         graph.add_edge(
@@ -286,7 +279,7 @@ class Analyzer:
         )
 
     def _fetch_normal_txs(self, chain_id: int, address: str) -> list:
-        time.sleep(0.4)  # Rate limiting
+        time.sleep(0.4)
         return self.scanner.get_normal_transactions(
             chain_id=chain_id,
             address=address,
@@ -296,7 +289,7 @@ class Analyzer:
         )
 
     def _fetch_erc20_transfers(self, chain_id: int, address: str) -> list:
-        time.sleep(0.4)  # Rate limiting
+        time.sleep(0.4)
         return self.scanner.get_erc20_transfers(
             chain_id=chain_id,
             address=address,

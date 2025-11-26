@@ -3,7 +3,6 @@ from typing import Optional
 
 from src.types.risk_info import RiskInfo
 
-
 @dataclass
 class Node:
     ID: str

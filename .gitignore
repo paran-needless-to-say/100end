@@ -10,3 +10,4 @@ build/
 test/test*
 CLAUDE.md
 nohup.out
+.github/workflows/

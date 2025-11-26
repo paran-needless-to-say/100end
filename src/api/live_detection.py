@@ -6,19 +6,12 @@ from datetime import datetime
 from src.configs.token_map import TOKEN_ADDRESS_MAP
 from src.api.risk_scoring import SDN_LIST
 
-# ALCHEMY API URL (환경 변수에서 가져오거나 기본값 사용)
 ALCHEMY_URL = os.getenv("ALCHEMY_API_KEY") or os.getenv("ALCHEMY_URL")
 
-# 간단한 리스크 점수 계산 함수
 def calculate_simple_risk_score(transfer: dict) -> dict:
-    """
-    간단한 룰 기반 리스크 점수 계산
-    실제 리스크 스코어링 API를 호출하기 전의 빠른 스코어링
-    """
     score = 0
     level = "Low"
     
-    # SDN 리스트 체크
     from_addr = transfer.get("from", "").lower()
     to_addr = transfer.get("to", "").lower()
     
@@ -26,13 +19,12 @@ def calculate_simple_risk_score(transfer: dict) -> dict:
         score = 90
         level = "High"
     else:
-        # 거래 금액 기반 점수 (간단한 예시)
         try:
             value = float(transfer.get("value", 0))
-            if value > 1000000:  # 100만 달러 이상
+            if value > 1000000:
                 score = 70
                 level = "High"
-            elif value > 100000:  # 10만 달러 이상
+            elif value > 100000:
                 score = 50
                 level = "Medium"
             else:
@@ -47,10 +39,8 @@ def calculate_simple_risk_score(transfer: dict) -> dict:
         "level": level
     }
 
-
 def fetch_live_detection(token_filter: str | None, page_no: int = 1, page_size: int = 10):
     if not ALCHEMY_URL:
-        # Alchemy API 키가 없으면 빈 리스트 반환 (에러 대신)
         print("⚠️  Warning: ALCHEMY_API_KEY environment variable is not set. Returning empty list.")
         return []
 
@@ -112,7 +102,6 @@ def fetch_live_detection(token_filter: str | None, page_no: int = 1, page_size: 
         dt = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
         ts_unix = int(dt.timestamp())
 
-        # 리스크 점수 계산
         risk_score = calculate_simple_risk_score(t)
 
         result.append({
