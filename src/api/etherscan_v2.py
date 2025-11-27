@@ -1,15 +1,18 @@
 import requests
+import time
 from typing import Dict, Any, List
 
 class EtherscanV2Client:
-    
+
     BASE_URL = "https://api.etherscan.io/v2/api"
-    
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.session = requests.Session()
-    
+
     def _make_request(self, params: Dict[str, Any], chain_id: int = 1) -> Dict[str, Any]:
+        time.sleep(0.4)
+
         params['apikey'] = self.api_key
         params['chainid'] = chain_id  # V2 requires chainid parameter
         

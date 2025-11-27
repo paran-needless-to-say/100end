@@ -227,7 +227,7 @@ class EtherscanClient:
         return tags
     
     def _make_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        time.sleep(0.2)
+        time.sleep(0.4)
         
         try:
             response = requests.get(self.base_url, params=params, timeout=30)
@@ -313,8 +313,8 @@ class RealDataCollector:
                     break
                 
                 page += 1
-                
-                time.sleep(0.2)
+
+                time.sleep(0.4)
                 
             except Exception as e:
                 print(f"Error collecting transactions: {e}")
